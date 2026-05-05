@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jarvis Dashboard — Atomic Group</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-base: #0d1117; --bg-surface: #161b22; --bg-surface-2: #1c222b;
+    --border: #30363d; --border-soft: #21262d;
+    --text-primary: #e6edf3; --text-secondary: #8b949e; --text-muted: #484f58;
+    --accent: #58a6ff;
+    --green: #3fb950; --green-bg: #1a3a1a;
+    --yellow: #d29922; --yellow-bg: #3a2f0a;
+    --red: #f85149; --red-bg: #3a0f0f;
+    --purple: #a371f7; --purple-bg: #2d1b5e;
+    --gold: #d4a73e;
+    --font-display: 'Inter', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg-base); color: var(--text-primary); font-family: var(--font-display); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; background-image: radial-gradient(circle at 15% 0%, rgba(88,166,255,0.06) 0%, transparent 50%), radial-gradient(circle at 85% 100%, rgba(212,167,62,0.04) 0%, transparent 50%); }
+
+  .topnav { position: sticky; top: 0; z-index: 100; background: rgba(13,17,23,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-soft); }
+  .topnav-inner { max-width: 1400px; margin: 0 auto; padding: 12px 32px; display: flex; align-items: center; gap: 24px; }
+  .logo-wrap { display: flex; align-items: center; gap: 12px; padding-right: 20px; border-right: 1px solid var(--border-soft); }
+  .logo-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+  .logo-text { display: flex; flex-direction: column; line-height: 1.1; }
+  .logo-text .product { font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
+  .logo-text .org { font-size: 10px; color: var(--text-secondary); font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 2px; }
+
+  .page-nav { display: flex; gap: 2px; flex: 1; }
+  .nav-link { padding: 9px 16px; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 600; border-radius: 8px; display: flex; align-items: center; gap: 8px; transition: all 0.15s ease; position: relative; }
+  .nav-link:hover { color: var(--text-primary); background: var(--bg-surface); }
+  .nav-link.active { color: var(--text-primary); background: var(--bg-surface); }
+  .nav-link.active::after { content: ""; position: absolute; bottom: -13px; left: 16px; right: 16px; height: 2px; background: var(--accent); border-radius: 2px; }
+  .nav-link svg { width: 14px; height: 14px; }
+
+  .nav-actions { display: flex; align-items: center; gap: 10px; }
+  .refresh-btn { display: flex; align-items: center; gap: 8px; padding: 9px 16px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 600; transition: all 0.15s ease; }
+  .refresh-btn:hover:not(:disabled) { background: var(--bg-surface-2); border-color: var(--accent); }
+  .refresh-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .refresh-btn svg { width: 14px; height: 14px; }
+  .refresh-btn.loading svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .last-sync { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); padding: 6px 10px; background: var(--bg-surface); border-radius: 6px; border: 1px solid var(--border-soft); }
+  .last-sync .live-dot { display: inline-block; width: 6px; height: 6px; background: var(--green); border-radius: 50%; margin-right: 6px; box-shadow: 0 0 8px var(--green); animation: pulse 2s ease-in-out infinite; }
+  .last-sync.error .live-dot { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 28px 32px; }
+  .brand-switcher { display: flex; gap: 4px; background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 10px; padding: 4px; margin-bottom: 24px; max-width: 100%; flex-wrap: wrap; }
+  .brand-tab { flex: 1; min-width: 100px; padding: 8px 14px; background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 600; border-radius: 7px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.18s ease; white-space: nowrap; position: relative; }
+  .brand-tab:hover { color: var(--text-primary); background: var(--bg-surface-2); }
+  .brand-tab.active { background: var(--bg-base); color: var(--text-primary); box-shadow: 0 0 0 1px var(--border), 0 1px 3px rgba(0,0,0,0.2); }
+  .brand-tab .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .brand-tab .nodata-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text-muted); margin-left: 4px; opacity: 0.6; }
+
+  .page { display: none; }
+  .page.active { display: block; animation: fadeIn 0.3s ease-out; }
+
+  .report-header { text-align: left; margin-bottom: 28px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .report-header-left .brand-name { font-size: 11px; color: var(--text-secondary); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .report-header-left .brand-name::before { content: ""; width: 24px; height: 1px; background: var(--text-secondary); }
+  .report-header-left h1 { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(180deg, var(--text-primary) 0%, #c9d1d9 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; }
+  .report-header-left .date { font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); }
+  .report-header-right { display: flex; gap: 8px; flex-wrap: wrap; }
+  .period-chip { padding: 7px 14px; background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 20px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
+  .period-chip:hover { color: var(--text-primary); border-color: var(--border); }
+  .period-chip.active { background: var(--accent); border-color: var(--accent); color: #0d1117; }
+
+  .metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 32px; }
+  @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 600px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+  .metric { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 10px; padding: 18px 20px; position: relative; overflow: hidden; transition: border-color 0.2s ease; }
+  .metric:hover { border-color: var(--border); }
+  .metric::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.4; }
+  .metric-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .metric-trend { font-family: var(--font-mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+  .metric-trend.up { background: var(--green-bg); color: var(--green); }
+  .metric-trend.down { background: var(--red-bg); color: var(--red); }
+  .metric-trend.muted { background: transparent; color: var(--text-muted); }
+  .metric-value { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+  .metric-value .unit { font-size: 13px; color: var(--text-secondary); font-weight: 600; margin-left: 3px; }
+  .metric-value.muted { color: var(--text-muted); }
+  .metric-sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; font-family: var(--font-mono); }
+  .metric.alert { border-color: var(--red); }
+  .metric.alert::before { background: linear-gradient(90deg, transparent, var(--red), transparent); opacity: 0.6; }
+  .metric.alert .metric-value { color: var(--red); }
+  .metric.success .metric-value { color: var(--green); }
+
+  .section-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .section-title::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+  .section-title .count { font-family: var(--font-mono); color: var(--text-muted); font-size: 11px; }
+
+  .ads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-bottom: 36px; }
+  .ad-card { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 10px; padding: 16px; border-left: 3px solid; transition: all 0.15s ease; }
+  .ad-card:hover { border-color: var(--border); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .ad-card.KEEP { border-left-color: var(--green); }
+  .ad-card.OBSERVE { border-left-color: var(--yellow); }
+  .ad-card.KILL { border-left-color: var(--red); }
+  .ad-badges { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .badge-KEEP { background: var(--green-bg); color: var(--green); }
+  .badge-OBSERVE { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-KILL { background: var(--red-bg); color: var(--red); }
+  .badge-NEW { background: var(--purple-bg); color: var(--purple); }
+  .badge-CORE { background: rgba(212,167,62,0.15); color: var(--gold); }
+  .ad-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; line-height: 1.35; }
+  .ad-adset { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+  .ad-campaign { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; font-family: var(--font-mono); word-break: break-word; }
+  .ad-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+  .stat { text-align: center; padding: 8px 4px; background: var(--bg-base); border-radius: 6px; }
+  .stat-value { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+  .stat-label { font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; font-weight: 600; }
+  .ad-reason { font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--border-soft); padding-top: 10px; margin-top: 10px; line-height: 1.5; }
+
+  .summary-box { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 12px; padding: 24px; margin-bottom: 36px; position: relative; overflow: hidden; }
+  .summary-box::before { content: ""; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(180deg, var(--accent), var(--purple)); }
+  .summary-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .summary-icon { width: 28px; height: 28px; background: linear-gradient(135deg, var(--accent), var(--purple)); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .summary-title { font-size: 14px; font-weight: 700; }
+  .summary-text { font-size: 14px; line-height: 1.7; color: #c9d1d9; margin-bottom: 14px; }
+  .recommendations { list-style: none; }
+  .recommendations li { font-size: 13px; color: var(--text-secondary); padding: 8px 0; border-bottom: 1px solid var(--border-soft); display: flex; gap: 10px; align-items: flex-start; }
+  .recommendations li:last-child { border-bottom: none; }
+  .recommendations li::before { content: "→"; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+  .expert-note { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; font-style: italic; }
+  .expert-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 36px; }
+  @media (max-width: 800px) { .expert-columns { grid-template-columns: 1fr; } }
+  .expert-panel { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 10px; overflow: hidden; }
+  .expert-panel-header { padding: 12px 16px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; display: flex; align-items: center; gap: 8px; }
+  .expert-panel-header.scale { background: var(--green-bg); color: var(--green); border-bottom: 1px solid rgba(63,185,80,0.3); }
+  .expert-panel-header.close { background: var(--red-bg); color: var(--red); border-bottom: 1px solid rgba(248,81,73,0.3); }
+  .expert-card { padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }
+  .expert-card:last-child { border-bottom: none; }
+  .expert-card-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+  .expert-rank { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; font-family: var(--font-mono); }
+  .rank-scale { background: var(--green); color: #fff; }
+  .rank-close { background: var(--red); color: #fff; }
+  .expert-ad-name { font-size: 13px; font-weight: 600; line-height: 1.4; }
+  .expert-metrics { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .metric-chip { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 500; font-family: var(--font-mono); }
+  .chip-scale { background: var(--green-bg); color: #56d364; }
+  .chip-close { background: var(--red-bg); color: #ff7b72; }
+  .expert-reason { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; background: linear-gradient(180deg, var(--text-primary) 0%, #c9d1d9 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .page-header .sub { font-size: 13px; color: var(--text-secondary); }
+
+  .log-day { margin-bottom: 28px; }
+  .log-day-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); }
+  .log-day-date { font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); font-weight: 700; }
+  .log-day-summary { font-size: 12px; color: var(--text-secondary); margin-left: auto; font-family: var(--font-mono); display: flex; gap: 6px; align-items: center; }
+  .log-day-summary .pill { padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .pill-pause { background: var(--red-bg); color: var(--red); }
+  .pill-budget { background: rgba(88,166,255,0.15); color: var(--accent); }
+
+  .log-entry { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 14px; align-items: center; transition: all 0.15s ease; }
+  .log-entry:hover { border-color: var(--border); }
+  .log-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+  .log-action-chip { font-size: 10px; font-weight: 700; padding: 4px 9px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; font-family: var(--font-mono); }
+  .chip-pause { background: var(--red-bg); color: var(--red); }
+  .chip-budget-up { background: var(--green-bg); color: var(--green); }
+  .chip-budget-down { background: var(--yellow-bg); color: var(--yellow); }
+  .chip-resume { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .chip-cbo-rebalance { background: rgba(163,113,247,0.15); color: var(--purple); }
+  .log-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .log-ad-name { font-size: 13px; font-weight: 600; }
+  .log-reason { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); }
+  .log-delta { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .log-delta strong { color: var(--text-primary); }
+  .log-source { font-size: 10px; color: var(--text-muted); padding: 2px 7px; background: var(--bg-base); border-radius: 4px; font-family: var(--font-mono); white-space: nowrap; }
+  @media (max-width: 800px) { .log-entry { grid-template-columns: 1fr; gap: 6px; } }
+
+  .review-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 800px) { .review-summary-grid { grid-template-columns: repeat(2, 1fr); } }
+  .review-stat { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 10px; padding: 18px 20px; }
+  .review-stat-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; font-weight: 600; }
+  .review-stat-value { font-size: 28px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+  .review-stat-value.correct { color: var(--green); }
+  .review-stat-value.questionable { color: var(--yellow); }
+  .review-stat-value.wrong { color: var(--red); }
+  .review-stat-sub { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); }
+
+  .accuracy-bar-wrap { margin-bottom: 32px; }
+  .accuracy-bar-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; }
+  .accuracy-bar { height: 10px; background: var(--bg-base); border-radius: 5px; overflow: hidden; display: flex; border: 1px solid var(--border-soft); }
+  .accuracy-bar-fill { height: 100%; transition: width 0.6s ease; }
+  .accuracy-bar-fill.correct { background: var(--green); }
+  .accuracy-bar-fill.questionable { background: var(--yellow); }
+  .accuracy-bar-fill.wrong { background: var(--red); }
+
+  .review-list { display: grid; gap: 10px; margin-bottom: 28px; }
+  .review-card { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 10px; padding: 16px; border-left: 3px solid; transition: all 0.15s ease; }
+  .review-card:hover { border-color: var(--border); transform: translateY(-1px); }
+  .review-card.correct { border-left-color: var(--green); }
+  .review-card.questionable { border-left-color: var(--yellow); }
+  .review-card.wrong { border-left-color: var(--red); }
+  .review-card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .review-verdict-chip { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .verdict-correct { background: var(--green-bg); color: var(--green); }
+  .verdict-questionable { background: var(--yellow-bg); color: var(--yellow); }
+  .verdict-wrong { background: var(--red-bg); color: var(--red); }
+  .review-action-name { font-size: 13px; font-weight: 600; }
+  .review-date { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-left: auto; }
+  .review-card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+  @media (max-width: 600px) { .review-card-body { grid-template-columns: 1fr; } }
+  .review-snapshot-label { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-bottom: 6px; font-size: 10px; }
+  .review-snapshot-data { color: var(--text-secondary); font-family: var(--font-mono); line-height: 1.6; font-size: 11px; }
+  .review-note { font-size: 12px; color: var(--text-secondary); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-soft); line-height: 1.5; }
+
+  .empty-state { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 12px; padding: 60px 24px; text-align: center; }
+  .empty-state h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text-primary); }
+  .empty-state p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; max-width: 480px; margin: 0 auto; }
+  .empty-state .icon { font-size: 36px; margin-bottom: 16px; opacity: 0.4; }
+  .error-state { background: var(--red-bg); border: 1px solid var(--red); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+  .error-state strong { color: var(--red); display: block; margin-bottom: 4px; }
+  .error-state span { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); }
+
+  .footer { text-align: center; color: var(--text-muted); font-size: 11px; margin-top: 40px; padding: 24px 0; border-top: 1px solid var(--border-soft); font-family: var(--font-mono); }
+  .footer .powered { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .footer .dot { color: var(--border); }
+
+  .loading-overlay { position: fixed; inset: 0; background: rgba(13,17,23,0.7); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 1000; }
+  .loading-overlay.visible { display: flex; }
+  .loading-card { background: var(--bg-surface); border: 1px solid var(--border); padding: 24px 32px; border-radius: 12px; display: flex; align-items: center; gap: 14px; font-size: 14px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+  .fade-in { animation: fadeIn 0.4s ease-out backwards; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* AI Floating Button + Chat Panel */
+  .ai-fab { position: fixed; bottom: 28px; right: 28px; z-index: 200; width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; background: linear-gradient(135deg, var(--accent), var(--purple)); color: #fff; box-shadow: 0 8px 24px rgba(88,166,255,0.35), 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
+  .ai-fab:hover { transform: scale(1.05); box-shadow: 0 12px 30px rgba(88,166,255,0.5); }
+  .ai-fab.open { transform: scale(0.92); }
+  .ai-fab svg { width: 26px; height: 26px; }
+  .ai-fab .glow { position: absolute; inset: -2px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--purple)); filter: blur(14px); opacity: 0.5; z-index: -1; animation: glowPulse 3s ease-in-out infinite; }
+  @keyframes glowPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
+
+  .ai-panel { position: fixed; bottom: 100px; right: 28px; z-index: 200; width: 420px; max-width: calc(100vw - 56px); height: 600px; max-height: calc(100vh - 140px); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: none; flex-direction: column; overflow: hidden; }
+  .ai-panel.visible { display: flex; animation: panelOpen 0.25s ease-out; }
+  @keyframes panelOpen { from { opacity: 0; transform: scale(0.85) translateY(20px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+  .ai-header { padding: 14px 18px; border-bottom: 1px solid var(--border-soft); display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(163,113,247,0.05)); }
+  .ai-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--purple)); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .ai-header-text { flex: 1; }
+  .ai-header-title { font-size: 14px; font-weight: 700; }
+  .ai-header-sub { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+  .ai-header-sub .live { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s ease-in-out infinite; }
+  .ai-close-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 22px; line-height: 1; padding: 4px 8px; border-radius: 6px; }
+  .ai-close-btn:hover { color: var(--text-primary); background: var(--bg-surface-2); }
+
+  .ai-mode { display: flex; gap: 4px; padding: 10px 16px 0; }
+  .ai-mode-tab { font-size: 11px; padding: 5px 11px; border-radius: 6px; background: transparent; border: 1px solid var(--border-soft); color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.15s ease; }
+  .ai-mode-tab.active { background: var(--bg-surface-2); color: var(--text-primary); border-color: var(--accent); }
+
+  .ai-messages { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .ai-msg { display: flex; gap: 8px; max-width: 92%; }
+  .ai-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .ai-msg-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .ai-msg.bot .ai-msg-avatar { background: linear-gradient(135deg, var(--accent), var(--purple)); color: #fff; }
+  .ai-msg.user .ai-msg-avatar { background: var(--bg-surface-2); color: var(--text-secondary); border: 1px solid var(--border); }
+  .ai-msg-bubble { background: var(--bg-base); padding: 10px 13px; border-radius: 12px; font-size: 13px; line-height: 1.55; border: 1px solid var(--border-soft); white-space: pre-wrap; word-wrap: break-word; }
+  .ai-msg.user .ai-msg-bubble { background: var(--accent); color: #0d1117; border-color: var(--accent); }
+  .ai-msg-bubble strong { color: var(--text-primary); }
+  .ai-msg-bubble code { font-family: var(--font-mono); background: var(--bg-surface-2); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+  .ai-msg.user .ai-msg-bubble strong { color: #0d1117; }
+  .ai-msg.error .ai-msg-bubble { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+  .ai-typing { display: inline-flex; gap: 3px; padding: 4px 0; }
+  .ai-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); animation: typing 1.2s infinite ease-in-out; }
+  .ai-typing span:nth-child(2) { animation-delay: 0.15s; }
+  .ai-typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+  .ai-suggestions { padding: 8px 18px; border-top: 1px solid var(--border-soft); display: flex; gap: 6px; flex-wrap: wrap; max-height: 90px; overflow-y: auto; }
+  .ai-suggest { font-size: 11px; padding: 5px 11px; background: var(--bg-base); border: 1px solid var(--border-soft); border-radius: 14px; color: var(--text-secondary); cursor: pointer; transition: all 0.15s ease; white-space: nowrap; }
+  .ai-suggest:hover { background: var(--bg-surface-2); color: var(--text-primary); border-color: var(--accent); }
+
+  .ai-input-area { padding: 12px 14px; border-top: 1px solid var(--border-soft); display: flex; gap: 8px; align-items: flex-end; background: var(--bg-surface); }
+  .ai-input { flex: 1; background: var(--bg-base); border: 1px solid var(--border-soft); border-radius: 10px; padding: 10px 12px; color: var(--text-primary); font-family: var(--font-display); font-size: 13px; resize: none; min-height: 40px; max-height: 120px; outline: none; transition: border-color 0.15s ease; }
+  .ai-input:focus { border-color: var(--accent); }
+  .ai-input::placeholder { color: var(--text-muted); }
+  .ai-send { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), var(--purple)); border: none; border-radius: 10px; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.15s ease; }
+  .ai-send:hover:not(:disabled) { opacity: 0.9; }
+  .ai-send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ai-send svg { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<!-- ===== PASSWORD GATE ===== -->
+<style id="auth-gate-style">body { visibility: hidden; } body.authed { visibility: visible; }</style>
+<script>
+(function() {
+  const PASSWORD = 'atomic2026';
+  const SESSION_KEY = 'jarvis_dashboard_auth_v1';
+  if (sessionStorage.getItem(SESSION_KEY) === PASSWORD) {
+    document.body.classList.add('authed');
+    return;
+  }
+  const input = prompt('🔒 Atomic Group · Jarvis Dashboard\n\nEnter password to continue:');
+  if (input === PASSWORD) {
+    sessionStorage.setItem(SESSION_KEY, PASSWORD);
+    document.body.classList.add('authed');
+  } else {
+    document.documentElement.innerHTML = `<head><meta charset="UTF-8"><title>Access Denied</title><style>body{margin:0;min-height:100vh;background:#0d1117;color:#e6edf3;font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;visibility:visible}.denied{text-align:center;padding:40px}.denied h1{font-size:48px;margin:0 0 12px;background:linear-gradient(180deg,#f85149,#d29922);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}.denied p{color:#8b949e;font-size:14px;margin:0 0 24px}.denied button{background:#58a6ff;color:#0d1117;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}.denied button:hover{opacity:0.9}</style></head><body class="authed"><div class="denied"><h1>🔒 Access Denied</h1><p>Wrong password. Contact Brayden for access.</p><button onclick="location.reload()">Try Again</button></div></body>`;
+    throw new Error('Unauthorized');
+  }
+})();
+</script>
+
+<!-- ===== TOPNAV ===== -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <div class="logo-wrap">
+      <img src="data:image/jpeg;base64,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" class="logo-img" alt="Atomic Group">
+      <div class="logo-text">
+        <span class="product">Jarvis</span>
+        <span class="org">Atomic Group · Ads Ops</span>
+      </div>
+    </div>
+    <div class="page-nav" id="pageNav">
+      <button class="nav-link active" data-page="dashboard">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm7 0h5v5H9V2zM2 9h5v5H2V9zm7 0h5v5H9V9z"/></svg>
+        Dashboard
+      </button>
+      <button class="nav-link" data-page="changelog">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 2.5a.25.25 0 0 0-.25.25v10.5c0 .14.11.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25H1.75zM4 5.5h8v1H4v-1zm0 3h8v1H4v-1zm0 3h5v1H4v-1z"/></svg>
+        Change Log
+      </button>
+      <button class="nav-link" data-page="reviews">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.8 4 4.3.4-3.3 2.9 1 4.2L8 10.8l-3.8 2.2 1-4.2L1.9 5.9l4.3-.4L8 1.5z"/></svg>
+        Decision Reviews
+      </button>
+    </div>
+    <div class="nav-actions">
+      <div class="last-sync" id="lastSyncContainer"><span class="live-dot"></span><span id="lastSyncTime">Connecting…</span></div>
+      <button class="refresh-btn" id="refreshBtn" onclick="manualRefresh()">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a5 5 0 1 0 4.546 2.914.751.751 0 0 1 1.36-.634A6.5 6.5 0 1 1 8 1.5h.5v1.503L8 3Z M9 1.75v3.5L11 3.5 9 1.75Z"/></svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="brand-switcher" id="brandSwitcher">
+    <!-- Populated by JS based on /api/brands response -->
+  </div>
+
+  <!-- ========== DASHBOARD PAGE ========== -->
+  <div class="page active" id="page-dashboard">
+    <div id="dashboardContent">
+      <!-- Populated by renderDashboard() -->
+    </div>
+  </div>
+
+  <!-- ========== CHANGE LOG PAGE ========== -->
+  <div class="page" id="page-changelog">
+    <div class="page-header">
+      <h1>Change Log</h1>
+      <div class="sub">Today's Jarvis-executed actions: pauses, budget changes, rebalances. Manual overrides also tracked.</div>
+    </div>
+    <div id="changelogContainer"></div>
+  </div>
+
+  <!-- ========== DECISION REVIEWS PAGE ========== -->
+  <div class="page" id="page-reviews">
+    <div class="page-header">
+      <h1>Decision Reviews</h1>
+      <div class="sub">7-day retrospective on every Jarvis decision — was the call correct in hindsight?</div>
+    </div>
+    <div id="reviewContainer"></div>
+  </div>
+
+  <div class="footer">
+    <div class="powered">
+      Jarvis v2.5
+      <span class="dot">·</span>
+      <span id="footerSource">Live · Meta Graph API + Gemini</span>
+      <span class="dot">·</span>
+      <span id="footerSync">Connecting…</span>
+    </div>
+  </div>
+
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-card">
+    <div class="spinner"></div>
+    <span id="loadingText">Loading…</span>
+  </div>
+</div>
+
+<!-- AI Floating Button -->
+<button class="ai-fab" id="aiFab" onclick="toggleAIPanel()" title="Ask Jarvis AI">
+  <span class="glow"></span>
+  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.4 4.6L18 8l-4.6 1.4L12 14l-1.4-4.6L6 8l4.6-1.4L12 2zm6 11l.7 2.3L21 16l-2.3.7L18 19l-.7-2.3L15 16l2.3-.7L18 13zM6 13l.5 1.5L8 15l-1.5.5L6 17l-.5-1.5L4 15l1.5-.5L6 13z"/></svg>
+</button>
+
+<!-- AI Chat Panel -->
+<div class="ai-panel" id="aiPanel">
+  <div class="ai-header">
+    <div class="ai-avatar">✨</div>
+    <div class="ai-header-text">
+      <div class="ai-header-title">Jarvis AI Assistant</div>
+      <div class="ai-header-sub"><span class="live"></span><span id="aiStatusText">Connected · Gemini</span></div>
+    </div>
+    <button class="ai-close-btn" onclick="toggleAIPanel()">×</button>
+  </div>
+  <div class="ai-mode">
+    <button class="ai-mode-tab active" data-mode="qa">💬 Quick Q&A</button>
+    <button class="ai-mode-tab" data-mode="deep">🔬 Deep Analysis</button>
+  </div>
+  <div class="ai-messages" id="aiMessages"></div>
+  <div class="ai-suggestions" id="aiSuggestions"></div>
+  <div class="ai-input-area">
+    <textarea class="ai-input" id="aiInput" placeholder="Ask anything about today's ads…" rows="1"></textarea>
+    <button class="ai-send" id="aiSendBtn" onclick="sendMessage()">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.5l13 6.5-13 6.5 2-6.5-2-6.5z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+// =========================================================================
+// CONFIG — set by deployment
+// =========================================================================
+const API_BASE = 'https://itself-great-ball-these.trycloudflare.com';
+const FRONTEND_KEY = 'HQEkta4bWLE1dqc9F3cW_MAPWTc5w1DhliKD-M87u78';
+
+// =========================================================================
+// STATE
+// =========================================================================
+let currentBrand = null;
+let currentPage = 'dashboard';
+let currentAIMode = 'qa';
+let cachedDashboard = {};  // brand_id → dashboard payload
+let cachedReviews = {};    // brand_id → reviews payload
+let brandsList = [];
+
+// =========================================================================
+// API HELPERS
+// =========================================================================
+async function apiGet(path) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { 'X-Frontend-Key': FRONTEND_KEY },
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: {
+      'X-Frontend-Key': FRONTEND_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+// =========================================================================
+// LOADING OVERLAY
+// =========================================================================
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Loading…';
+  document.getElementById('loadingOverlay').classList.add('visible');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('visible');
+}
+
+// =========================================================================
+// FORMAT HELPERS
+// =========================================================================
+function formatTimestamp(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-MY', { hour12: false, timeZone: 'Asia/Kuala_Lumpur' });
+  } catch { return iso; }
+}
+function formatTimeShort(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm} MYT`;
+  } catch { return iso; }
+}
+function escapeHtml(text) {
+  if (text == null) return '';
+  const div = document.createElement('div');
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+function setLastSyncOk(iso) {
+  const elem = document.getElementById('lastSyncTime');
+  const container = document.getElementById('lastSyncContainer');
+  container.classList.remove('error');
+  elem.textContent = `Synced ${formatTimeShort(iso)}`;
+  document.getElementById('footerSync').textContent = `Last data: ${formatTimestamp(iso)}`;
+}
+function setLastSyncError(msg) {
+  const container = document.getElementById('lastSyncContainer');
+  container.classList.add('error');
+  document.getElementById('lastSyncTime').textContent = `Error: ${msg}`;
+}
+
+// =========================================================================
+// BRANDS — load list and render switcher
+// =========================================================================
+async function loadBrands() {
+  const data = await apiGet('/api/brands');
+  brandsList = data.brands;
+
+  const container = document.getElementById('brandSwitcher');
+  container.innerHTML = brandsList.map(b => `
+    <button class="brand-tab ${b.brand_id === currentBrand ? 'active' : ''}" data-brand="${escapeHtml(b.brand_id)}" ${!b.has_data ? 'data-no-data="true"' : ''}>
+      <span class="dot" style="background: ${escapeHtml(b.color)};"></span>
+      ${escapeHtml(b.display_name)}
+      ${!b.has_data ? '<span class="nodata-dot" title="No data yet"></span>' : ''}
+    </button>
+  `).join('');
+
+  container.querySelectorAll('.brand-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchBrand(tab.dataset.brand));
+  });
+
+  // Auto-select first brand with data, fallback to first brand
+  if (!currentBrand) {
+    const firstWithData = brandsList.find(b => b.has_data);
+    currentBrand = (firstWithData || brandsList[0]).brand_id;
+    container.querySelector(`[data-brand="${currentBrand}"]`)?.classList.add('active');
+  }
+}
+
+function switchBrand(brandId) {
+  if (brandId === currentBrand) return;
+  currentBrand = brandId;
+  document.querySelectorAll('.brand-tab').forEach(t => t.classList.toggle('active', t.dataset.brand === brandId));
+  loadCurrentBrand();
+}
+
+// =========================================================================
+// DASHBOARD PAGE
+// =========================================================================
+async function loadCurrentBrand() {
+  showLoading('Fetching ' + currentBrand + '…');
+  document.getElementById('refreshBtn').classList.add('loading');
+  try {
+    const [dashboard, reviews] = await Promise.all([
+      apiGet(`/api/dashboard?brand=${encodeURIComponent(currentBrand)}`),
+      apiGet(`/api/reviews?brand=${encodeURIComponent(currentBrand)}&period=weekly`),
+    ]);
+    cachedDashboard[currentBrand] = dashboard;
+    cachedReviews[currentBrand] = reviews;
+    renderDashboard(dashboard);
+    renderChangelog(dashboard);
+    renderReviews(reviews);
+    setLastSyncOk(dashboard.last_updated_at || dashboard.report_timestamp);
+  } catch (err) {
+    console.error('Load failed:', err);
+    setLastSyncError(err.message.slice(0, 30));
+    showError(err.message);
+  } finally {
+    hideLoading();
+    document.getElementById('refreshBtn').classList.remove('loading');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('dashboardContent').innerHTML = `
+    <div class="error-state">
+      <strong>⚠️ Failed to load data</strong>
+      <span>${escapeHtml(msg)}</span>
+    </div>
+    <div class="empty-state">
+      <div class="icon">🔌</div>
+      <h2>Cannot reach the dashboard API</h2>
+      <p>Check that the central API is running and the tunnel URL is correct. Press Refresh to retry.</p>
+    </div>`;
+}
+
+function renderDashboard(d) {
+  const container = document.getElementById('dashboardContent');
+
+  if (d._no_data) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⏳</div>
+        <h2>${escapeHtml(d.brand_display_name)} · No data yet</h2>
+        <p>This brand's bot hasn't pushed any data yet. The first daily push happens at 10:05 AM MYT after the bot's daily audit completes. Or trigger manually via Telegram <code>/dashboard_push</code>.</p>
+      </div>`;
+    return;
+  }
+
+  const m = d.metrics || {};
+  const ads = d.ads || [];
+  const ai = d.ai_summary || {};
+  const exp = d.expert_insights || { scale_top: [], close_bottom: [] };
+
+  // Build metrics row with N/A flags
+  const trendChip = (val, suffix, hasData) => {
+    if (!hasData) return '<span class="metric-trend muted">—</span>';
+    const sign = val > 0 ? '+' : '';
+    const cls = val < 0 ? 'down' : 'up';
+    return `<span class="metric-trend ${cls}">${sign}${val}${suffix}</span>`;
+  };
+
+  const roasDisplay = d.has_purchase_tracking
+    ? `<div class="metric-value">${(m.roas || 0).toFixed(2)}x</div>`
+    : `<div class="metric-value muted">N/A</div>`;
+  const roasSub = d.has_purchase_tracking
+    ? `${m.purchases || 0} purchases`
+    : 'No purchase tracking';
+
+  let html = `
+    <div class="report-header fade-in">
+      <div class="report-header-left">
+        <div class="brand-name">${escapeHtml(d.brand_id.toUpperCase())}</div>
+        <h1>${escapeHtml(d.brand_display_name)}</h1>
+        <div class="date">${escapeHtml(d.brand_category)} · ${escapeHtml(d.report_date)}</div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="metric-label">Total Spend ${trendChip(m.spend_trend_pct || 0, '%', d.has_trend_data)}</div>
+        <div class="metric-value">${(m.spend || 0).toFixed(2)}<span class="unit"> RM</span></div>
+        <div class="metric-sub">Today · cap RM${m.budget_cap || 0}</div></div>
+      <div class="metric"><div class="metric-label">Total Leads ${trendChip(m.leads_trend_abs || 0, '', d.has_trend_data)}</div>
+        <div class="metric-value">${m.leads || 0}</div>
+        <div class="metric-sub">Msg conversations</div></div>
+      <div class="metric ${(m.cpl || 0) > (m.cpl_target || 999) ? '' : 'success'}"><div class="metric-label">Avg CPL</div>
+        <div class="metric-value">${(m.cpl || 0).toFixed(2)}<span class="unit"> RM</span></div>
+        <div class="metric-sub">Target ≤ RM${m.cpl_target || 0}</div></div>
+      <div class="metric ${(m.kill_count || 0) > 0 ? 'alert' : ''}"><div class="metric-label">To Kill</div>
+        <div class="metric-value" style="color:${(m.kill_count || 0) > 0 ? 'var(--red)' : 'var(--green)'}">${m.kill_count || 0}</div>
+        <div class="metric-sub">${escapeHtml(m.kill_note || '')}</div></div>
+      <div class="metric"><div class="metric-label">ROAS</div>
+        ${roasDisplay}
+        <div class="metric-sub">${roasSub}</div></div>
+      <div class="metric"><div class="metric-label">Budget Used</div>
+        <div class="metric-value success">RM${m.budget_used || 0}</div>
+        <div class="metric-sub">${m.budget_pct || 0}% of cap</div></div>
+    </div>
+
+    <div class="section-title">Ad Details <span class="count">${ads.length} active ads</span></div>
+    <div class="ads-grid">
+      ${ads.map(ad => renderAdCard(ad)).join('')}
+    </div>
+
+    ${ai.summary ? `
+    <div class="section-title">AI Analysis Summary</div>
+    <div class="summary-box">
+      <div class="summary-header">
+        <div class="summary-icon">✨</div>
+        <div class="summary-title">${escapeHtml(ai.model || 'Gemini')} · Daily Insight</div>
+      </div>
+      <div class="summary-text">${escapeHtml(ai.summary)}</div>
+      ${(ai.recommendations || []).length > 0 ? `
+        <ul class="recommendations">
+          ${ai.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+        </ul>` : ''}
+    </div>` : ''}
+
+    ${(exp.scale_top.length > 0 || exp.close_bottom.length > 0) ? `
+    <div class="section-title">🧠 Expert Insights · Independent Assessment</div>
+    <div class="expert-note">Independent AI assessment based purely on data metrics, separate from the CPL rule framework.</div>
+    <div class="expert-columns">
+      <div class="expert-panel">
+        <div class="expert-panel-header scale">🏆 Top — Worth Scaling</div>
+        ${exp.scale_top.map(item => renderExpertCard(item, 'scale')).join('') || '<div class="expert-card"><div class="expert-reason">No standouts today.</div></div>'}
+      </div>
+      <div class="expert-panel">
+        <div class="expert-panel-header close">🚫 Bottom — Watch Closely</div>
+        ${exp.close_bottom.map(item => renderExpertCard(item, 'close')).join('') || '<div class="expert-card"><div class="expert-reason">No concerns today.</div></div>'}
+      </div>
+    </div>` : ''}
+  `;
+
+  container.innerHTML = html;
+}
+
+function renderAdCard(ad) {
+  const badges = [];
+  if (ad.is_core) badges.push('<span class="badge badge-CORE">⭐ CORE</span>');
+  badges.push(`<span class="badge badge-${ad.verdict}">${ad.verdict === 'KEEP' ? '✅ KEEP' : ad.verdict === 'OBSERVE' ? '⚠️ OBSERVE' : '❌ KILL'}</span>`);
+  if (ad.is_new) badges.push(`<span class="badge badge-NEW">🌟 NEW · ${(ad.new_days_left || 0).toFixed(1)}d left</span>`);
+
+  return `
+    <div class="ad-card ${ad.verdict}">
+      <div class="ad-badges">${badges.join('')}</div>
+      <div class="ad-name">${escapeHtml(ad.name || '?')} <span class="ad-adset">(${escapeHtml(ad.adset_name || '')})</span></div>
+      <div class="ad-campaign">${escapeHtml(ad.campaign_name || '')}</div>
+      <div class="ad-stats">
+        <div class="stat"><div class="stat-value">RM${(ad.spend || 0).toFixed(0)}</div><div class="stat-label">Spend</div></div>
+        <div class="stat"><div class="stat-value">${ad.msg_conversations || 0}</div><div class="stat-label">Msgs</div></div>
+        <div class="stat"><div class="stat-value">RM${(ad.cost_per_msg || 0).toFixed(0)}</div><div class="stat-label">Cost/Msg</div></div>
+        <div class="stat"><div class="stat-value">RM${(ad.daily_budget || 0).toFixed(0)}</div><div class="stat-label">${escapeHtml(ad.budget_type || 'Budget')}/Day</div></div>
+      </div>
+      <div class="ad-stats">
+        <div class="stat"><div class="stat-value">${ad.purchases || 0}</div><div class="stat-label">Purchases</div></div>
+        <div class="stat"><div class="stat-value">${(ad.roas || 0).toFixed(2)}x</div><div class="stat-label">ROAS</div></div>
+        <div class="stat"><div class="stat-value">${(ad.ctr || 0).toFixed(2)}%</div><div class="stat-label">CTR</div></div>
+        <div class="stat"><div class="stat-value">${(ad.frequency || 0).toFixed(2)}</div><div class="stat-label">Frequency</div></div>
+      </div>
+      <div class="ad-reason">${escapeHtml(ad.reason || '')}</div>
+    </div>`;
+}
+
+function renderExpertCard(item, type) {
+  return `
+    <div class="expert-card">
+      <div class="expert-card-top">
+        <span class="expert-rank rank-${type}">${item.rank || '?'}</span>
+        <span class="expert-ad-name">${escapeHtml(item.ad_name || '')}</span>
+      </div>
+      <div class="expert-metrics">${(item.metrics || []).map(c => `<span class="metric-chip chip-${type}">${escapeHtml(c)}</span>`).join('')}</div>
+      <div class="expert-reason">${escapeHtml(item.reason || '')}</div>
+    </div>`;
+}
+
+// =========================================================================
+// CHANGELOG PAGE
+// =========================================================================
+function renderChangelog(d) {
+  const container = document.getElementById('changelogContainer');
+  const entries = d.changelog_today || [];
+
+  if (entries.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <h2>No actions today</h2>
+        <p>Jarvis hasn't taken any actions yet today for ${escapeHtml(d.brand_display_name || 'this brand')}. Daily rule check runs at 10:00 AM MYT. Check back later or switch to another brand.</p>
+      </div>`;
+    return;
+  }
+
+  // Group by day (currently only "today" — future: history endpoint)
+  const summary = entries.reduce((acc, e) => {
+    if (e.type === 'pause') acc.pause++;
+    else if (e.type === 'budget-up' || e.type === 'budget-down') acc.budget++;
+    return acc;
+  }, { pause: 0, budget: 0 });
+
+  const summaryPills = [];
+  if (summary.pause > 0) summaryPills.push(`<span class="pill pill-pause">${summary.pause} pause</span>`);
+  if (summary.budget > 0) summaryPills.push(`<span class="pill pill-budget">${summary.budget} budget</span>`);
+
+  container.innerHTML = `
+    <div class="log-day">
+      <div class="log-day-header">
+        <div class="log-day-date">${escapeHtml(d.report_date)} · Today</div>
+        <div class="log-day-summary">${summaryPills.join('')}</div>
+      </div>
+      ${entries.map(e => `
+        <div class="log-entry">
+          <div class="log-time">${escapeHtml(e.time || '')}</div>
+          <div class="log-action-chip chip-${e.type}">${escapeHtml(e.action || e.type)}</div>
+          <div class="log-content">
+            <div class="log-ad-name">${escapeHtml(e.ad_name || '')}</div>
+            <div class="log-reason">${escapeHtml(e.reason || '')}</div>
+          </div>
+          <div class="log-delta"><strong>${escapeHtml(e.delta || '')}</strong></div>
+          <div class="log-source">${escapeHtml(e.source || '')}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// =========================================================================
+// REVIEWS PAGE
+// =========================================================================
+function renderReviews(r) {
+  const container = document.getElementById('reviewContainer');
+  const w = r.weekly_review;
+
+  if (!w) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⏳</div>
+        <h2>No weekly review yet</h2>
+        <p>Decision Journal needs at least 7 days of historical decisions before reviews appear. Check back after the system has been running a week.</p>
+      </div>`;
+    return;
+  }
+
+  const stats = w.stats || {};
+  const total = stats.total || 0;
+  const correctPct = total > 0 ? (stats.correct / total) * 100 : 0;
+  const questionablePct = total > 0 ? (stats.questionable / total) * 100 : 0;
+  const wrongPct = total > 0 ? (stats.wrong / total) * 100 : 0;
+
+  container.innerHTML = `
+    <div class="page-header" style="margin-bottom:16px;">
+      <div class="sub" style="font-family:var(--font-mono);">Period: ${escapeHtml(w.period_start)} → ${escapeHtml(w.period_end)}</div>
+    </div>
+    <div class="review-summary-grid">
+      <div class="review-stat"><div class="review-stat-label">Total Decisions</div>
+        <div class="review-stat-value">${total}</div>
+        <div class="review-stat-sub">Reviewed after 7d</div></div>
+      <div class="review-stat"><div class="review-stat-label">✅ Correct</div>
+        <div class="review-stat-value correct">${stats.correct || 0}</div>
+        <div class="review-stat-sub">${Math.round(correctPct)}% of total</div></div>
+      <div class="review-stat"><div class="review-stat-label">⚠️ Questionable</div>
+        <div class="review-stat-value questionable">${stats.questionable || 0}</div>
+        <div class="review-stat-sub">Worth reviewing</div></div>
+      <div class="review-stat"><div class="review-stat-label">❌ Wrong</div>
+        <div class="review-stat-value wrong">${stats.wrong || 0}</div>
+        <div class="review-stat-sub">Lessons learned</div></div>
+    </div>
+    <div class="accuracy-bar-wrap">
+      <div class="accuracy-bar-label">
+        <span>🎯 Decision Accuracy</span>
+        <span>${stats.accuracy_pct || 0}% (target: 80%)</span>
+      </div>
+      <div class="accuracy-bar">
+        <div class="accuracy-bar-fill correct" style="width:${correctPct}%"></div>
+        <div class="accuracy-bar-fill questionable" style="width:${questionablePct}%"></div>
+        <div class="accuracy-bar-fill wrong" style="width:${wrongPct}%"></div>
+      </div>
+    </div>
+    <div class="section-title">Decisions Reviewed <span class="count">${(w.reviews || []).length} entries</span></div>
+    <div class="review-list">
+      ${(w.reviews || []).map(rv => `
+        <div class="review-card ${rv.verdict}">
+          <div class="review-card-top">
+            <span class="review-verdict-chip verdict-${rv.verdict}">${rv.verdict === 'correct' ? '✅ Correct' : rv.verdict === 'questionable' ? '⚠️ Questionable' : '❌ Wrong'}</span>
+            <span class="review-action-name">${escapeHtml(rv.action_type || '')} · ${escapeHtml(rv.ad_name || '')}</span>
+            <span class="review-date">${escapeHtml(rv.decision_date || '')}</span>
+          </div>
+          <div class="review-card-body">
+            <div>
+              <div class="review-snapshot-label">📸 Before (at decision)</div>
+              <div class="review-snapshot-data">${escapeHtml(rv.before || '')}</div>
+            </div>
+            <div>
+              <div class="review-snapshot-label">📊 After (7 days later)</div>
+              <div class="review-snapshot-data">${escapeHtml(rv.after || '')}</div>
+            </div>
+          </div>
+          <div class="review-note">💡 ${escapeHtml(rv.lesson || '')}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// =========================================================================
+// PAGE NAVIGATION
+// =========================================================================
+document.querySelectorAll('.nav-link').forEach(link => {
+  link.addEventListener('click', () => {
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    link.classList.add('active');
+    currentPage = link.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + currentPage).classList.add('active');
+  });
+});
+
+// =========================================================================
+// REFRESH
+// =========================================================================
+async function manualRefresh() {
+  if (currentBrand) await loadCurrentBrand();
+}
+
+// =========================================================================
+// AI PANEL
+// =========================================================================
+const SUGGESTED_QUESTIONS = {
+  qa: [
+    'Top performer today?',
+    'Why was anything paused today?',
+    'Which ads should I scale?',
+    'How is CPL trending vs target?',
+    'Which ads are hitting fatigue?',
+  ],
+  deep: [
+    'Run a deep performance audit on this brand',
+    'What creative formats win for this brand?',
+    'Identify the optimal scale rule for top performers',
+    'What patterns explain wrong decisions in this week?',
+    'Recommend next week strategy with priorities',
+  ],
+};
+
+function renderAISuggestions() {
+  const list = SUGGESTED_QUESTIONS[currentAIMode] || [];
+  document.getElementById('aiSuggestions').innerHTML = list.map(s =>
+    `<div class="ai-suggest" onclick="document.getElementById('aiInput').value=this.textContent;document.getElementById('aiInput').focus();">${escapeHtml(s)}</div>`
+  ).join('');
+}
+
+function appendMessage(role, text, isError) {
+  const msgs = document.getElementById('aiMessages');
+  const div = document.createElement('div');
+  div.className = `ai-msg ${role}${isError ? ' error' : ''}`;
+  // simple markdown: bold, code
+  let formatted = escapeHtml(text);
+  formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+  div.innerHTML = `<div class="ai-msg-avatar">${role === 'user' ? 'B' : '✨'}</div><div class="ai-msg-bubble">${formatted}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function appendTyping() {
+  const msgs = document.getElementById('aiMessages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg bot';
+  div.id = 'typingIndicator';
+  div.innerHTML = `<div class="ai-msg-avatar">✨</div><div class="ai-msg-bubble"><span class="ai-typing"><span></span><span></span><span></span></span></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  document.getElementById('typingIndicator')?.remove();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('aiInput');
+  const sendBtn = document.getElementById('aiSendBtn');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!currentBrand) {
+    appendMessage('bot', 'Please select a brand first.', true);
+    return;
+  }
+
+  appendMessage('user', text);
+  input.value = '';
+  sendBtn.disabled = true;
+  appendTyping();
+
+  try {
+    const res = await apiPost('/api/ask', {
+      brand: currentBrand,
+      question: text,
+      mode: currentAIMode,
+    });
+    removeTyping();
+    appendMessage('bot', res.answer || '(empty response)');
+    document.getElementById('aiStatusText').textContent = `Connected · ${res.model_used || 'Gemini'}`;
+  } catch (err) {
+    removeTyping();
+    appendMessage('bot', `Failed to get answer: ${err.message}`, true);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+document.getElementById('aiInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+document.querySelectorAll('.ai-mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.ai-mode-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentAIMode = tab.dataset.mode;
+    renderAISuggestions();
+    const intro = currentAIMode === 'deep'
+      ? `Switched to **🔬 Deep Analysis** mode. Slower (~10-30s) but much more thorough — uses Gemini 3.1 Pro with full brand context.`
+      : `Switched to **💬 Quick Q&A** mode. Fast factual answers using Gemini 3 Flash.`;
+    appendMessage('bot', intro);
+  });
+});
+
+function toggleAIPanel() {
+  const panel = document.getElementById('aiPanel');
+  const fab = document.getElementById('aiFab');
+  panel.classList.toggle('visible');
+  fab.classList.toggle('open');
+  if (panel.classList.contains('visible') && document.getElementById('aiMessages').children.length === 0) {
+    const brandName = brandsList.find(b => b.brand_id === currentBrand)?.display_name || currentBrand;
+    appendMessage('bot', `Hi Brayden 👋 I'm Jarvis AI, your assistant for the **${brandName}** ad account.\n\nI have full context on today's ad data. Ask me anything, or pick a quick question below.`);
+    renderAISuggestions();
+  }
+}
+
+// =========================================================================
+// BOOT
+// =========================================================================
+async function boot() {
+  showLoading('Connecting to API…');
+  try {
+    await loadBrands();
+    await loadCurrentBrand();
+  } catch (err) {
+    console.error('Boot failed:', err);
+    setLastSyncError(err.message.slice(0, 30));
+    showError(err.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+// Validate config at boot
+if (API_BASE.includes('__API_BASE__') || FRONTEND_KEY.includes('__FRONTEND_KEY__')) {
+  document.getElementById('dashboardContent').innerHTML = `
+    <div class="error-state">
+      <strong>⚙️ Configuration not set</strong>
+      <span>API_BASE and FRONTEND_KEY must be set in the HTML before deployment. See top of &lt;script&gt; tag.</span>
+    </div>`;
+} else {
+  boot();
+}
+</script>
+
+</body>
+</html>
