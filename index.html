@@ -72,6 +72,10 @@
   .period-chip { padding: 7px 14px; background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 20px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s ease; }
   .period-chip:hover { color: var(--text-primary); border-color: var(--border); }
   .period-chip.active { background: var(--accent); border-color: var(--accent); color: #0d1117; }
+  .period-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .period-bar-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-right: 2px; }
+  .period-select { padding: 7px 12px; background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 20px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-display); transition: all 0.15s ease; }
+  .period-select:hover { color: var(--text-primary); border-color: var(--border); }
 
   .metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 32px; }
   @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(3, 1fr); } }
@@ -440,11 +444,13 @@ const FRONTEND_KEY = 'HQEkta4bWLE1dqc9F3cW_MAPWTc5w1DhliKD-M87u78';
 // STATE
 // =========================================================================
 let currentBrand = null;
+let currentDate = null;    // null = latest snapshot; else 'YYYY-MM-DD'
 let currentPage = 'dashboard';
 let currentAIMode = 'qa';
 let cachedDashboard = {};  // brand_id → dashboard payload
 let cachedReviews = {};    // brand_id → reviews payload
 let brandsList = [];
+let availableDates = [];   // report_dates available for currentBrand, newest first
 
 // =========================================================================
 // API HELPERS
@@ -550,6 +556,7 @@ async function loadBrands() {
 function switchBrand(brandId) {
   if (brandId === currentBrand) return;
   currentBrand = brandId;
+  currentDate = null;   // reset to latest snapshot when switching brand
   document.querySelectorAll('.brand-tab').forEach(t => t.classList.toggle('active', t.dataset.brand === brandId));
   loadCurrentBrand();
 }
@@ -561,10 +568,14 @@ async function loadCurrentBrand() {
   showLoading('Fetching ' + currentBrand + '…');
   document.getElementById('refreshBtn').classList.add('loading');
   try {
-    const [dashboard, reviews] = await Promise.all([
-      apiGet(`/api/dashboard?brand=${encodeURIComponent(currentBrand)}`),
+    const dashPath = `/api/dashboard?brand=${encodeURIComponent(currentBrand)}`
+      + (currentDate ? `&date=${encodeURIComponent(currentDate)}` : '');
+    const [dashboard, reviews, datesResp] = await Promise.all([
+      apiGet(dashPath),
       apiGet(`/api/reviews?brand=${encodeURIComponent(currentBrand)}&period=weekly`),
+      apiGet(`/api/dashboard/dates?brand=${encodeURIComponent(currentBrand)}`).catch(() => ({ dates: [] })),
     ]);
+    availableDates = datesResp.dates || [];
     cachedDashboard[currentBrand] = dashboard;
     cachedReviews[currentBrand] = reviews;
     renderDashboard(dashboard);
@@ -594,15 +605,53 @@ function showError(msg) {
     </div>`;
 }
 
+// MYT (Asia/Kuala_Lumpur) date string, offsetDays into the past.
+function mytDateStr(offsetDays) {
+  const myt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kuala_Lumpur' }));
+  myt.setDate(myt.getDate() - (offsetDays || 0));
+  const m = String(myt.getMonth() + 1).padStart(2, '0');
+  const dd = String(myt.getDate()).padStart(2, '0');
+  return `${myt.getFullYear()}-${m}-${dd}`;
+}
+
+// Period selector: Today / Yesterday chips + a date dropdown for older days.
+function periodBarHtml(shownDate) {
+  const today = mytDateStr(0);
+  const yest = mytDateStr(1);
+  const opts = availableDates.map(dt =>
+    `<option value="${escapeHtml(dt)}" ${dt === shownDate ? 'selected' : ''}>${escapeHtml(dt)}</option>`
+  ).join('');
+  const inList = availableDates.includes(shownDate);
+  return `
+    <div class="period-bar">
+      <span class="period-bar-label">View</span>
+      <button class="period-chip ${shownDate === today ? 'active' : ''}" onclick="selectDate('${today}')">Today</button>
+      <button class="period-chip ${shownDate === yest ? 'active' : ''}" onclick="selectDate('${yest}')">Yesterday</button>
+      <select class="period-select" onchange="selectDate(this.value)">
+        <option value="" ${!inList ? 'selected' : ''} disabled>Pick a date…</option>
+        ${opts}
+      </select>
+    </div>`;
+}
+
+// Called by the period chips / dropdown.
+function selectDate(dateStr) {
+  currentDate = dateStr || null;
+  if (currentBrand) loadCurrentBrand();
+}
+
 function renderDashboard(d) {
   const container = document.getElementById('dashboardContent');
 
   if (d._no_data) {
-    container.innerHTML = `
+    const msg = currentDate
+      ? `No snapshot was pushed for <strong>${escapeHtml(currentDate)}</strong>. The bot may not have run a daily audit that day — pick another date above.`
+      : `This brand's bot hasn't pushed any data yet. The first daily push happens at 10:05 AM MYT after the bot's daily audit completes. Or trigger manually via Telegram <code>/dashboard_push</code>.`;
+    container.innerHTML = periodBarHtml(d.report_date || (currentDate || '')) + `
       <div class="empty-state">
         <div class="icon">⏳</div>
-        <h2>${escapeHtml(d.brand_display_name)} · No data yet</h2>
-        <p>This brand's bot hasn't pushed any data yet. The first daily push happens at 10:05 AM MYT after the bot's daily audit completes. Or trigger manually via Telegram <code>/dashboard_push</code>.</p>
+        <h2>${escapeHtml(d.brand_display_name)} · No data</h2>
+        <p>${msg}</p>
       </div>`;
     return;
   }
@@ -627,7 +676,7 @@ function renderDashboard(d) {
     ? `${m.purchases || 0} purchases`
     : 'No purchase tracking';
 
-  let html = `
+  let html = periodBarHtml(d.report_date) + `
     <div class="report-header fade-in">
       <div class="report-header-left">
         <div class="brand-name">${escapeHtml(d.brand_id.toUpperCase())}</div>
@@ -744,8 +793,8 @@ function renderChangelog(d) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="icon">📋</div>
-        <h2>No actions today</h2>
-        <p>Jarvis hasn't taken any actions yet today for ${escapeHtml(d.brand_display_name || 'this brand')}. Daily rule check runs at 10:00 AM MYT. Check back later or switch to another brand.</p>
+        <h2>No actions logged</h2>
+        <p>Jarvis didn't log any actions for ${escapeHtml(d.brand_display_name || 'this brand')}${d.report_date ? ' on ' + escapeHtml(d.report_date) : ''}. Daily rule check runs at 10:00 AM MYT.</p>
       </div>`;
     return;
   }
@@ -764,7 +813,7 @@ function renderChangelog(d) {
   container.innerHTML = `
     <div class="log-day">
       <div class="log-day-header">
-        <div class="log-day-date">${escapeHtml(d.report_date)} · Today</div>
+        <div class="log-day-date">${escapeHtml(d.report_date)}${d.report_date === mytDateStr(0) ? ' · Today' : d.report_date === mytDateStr(1) ? ' · Yesterday' : ''}</div>
         <div class="log-day-summary">${summaryPills.join('')}</div>
       </div>
       ${entries.map(e => `
