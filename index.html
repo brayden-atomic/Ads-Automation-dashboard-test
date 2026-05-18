@@ -74,6 +74,7 @@
   .period-chip.active { background: var(--accent); border-color: var(--accent); color: #0d1117; }
   .period-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
   .period-bar-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-right: 2px; }
+  .period-bar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; }
   .period-select { padding: 7px 12px; background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 20px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-display); transition: all 0.15s ease; }
   .period-select:hover { color: var(--text-primary); border-color: var(--border); }
 
@@ -445,6 +446,7 @@ const FRONTEND_KEY = 'HQEkta4bWLE1dqc9F3cW_MAPWTc5w1DhliKD-M87u78';
 // =========================================================================
 let currentBrand = null;
 let currentDate = null;    // null = latest snapshot; else 'YYYY-MM-DD'
+let currentWindow = '7d';  // '7d' (trailing week) | '1d' (single full day)
 let currentPage = 'dashboard';
 let currentAIMode = 'qa';
 let cachedDashboard = {};  // brand_id → dashboard payload
@@ -556,7 +558,8 @@ async function loadBrands() {
 function switchBrand(brandId) {
   if (brandId === currentBrand) return;
   currentBrand = brandId;
-  currentDate = null;   // reset to latest snapshot when switching brand
+  currentDate = null;     // reset to latest snapshot when switching brand
+  currentWindow = '7d';   // reset to the 7-day window
   document.querySelectorAll('.brand-tab').forEach(t => t.classList.toggle('active', t.dataset.brand === brandId));
   loadCurrentBrand();
 }
@@ -569,11 +572,12 @@ async function loadCurrentBrand() {
   document.getElementById('refreshBtn').classList.add('loading');
   try {
     const dashPath = `/api/dashboard?brand=${encodeURIComponent(currentBrand)}`
+      + `&window=${encodeURIComponent(currentWindow)}`
       + (currentDate ? `&date=${encodeURIComponent(currentDate)}` : '');
     const [dashboard, reviews, datesResp] = await Promise.all([
       apiGet(dashPath),
       apiGet(`/api/reviews?brand=${encodeURIComponent(currentBrand)}&period=weekly`),
-      apiGet(`/api/dashboard/dates?brand=${encodeURIComponent(currentBrand)}`).catch(() => ({ dates: [] })),
+      apiGet(`/api/dashboard/dates?brand=${encodeURIComponent(currentBrand)}&window=${encodeURIComponent(currentWindow)}`).catch(() => ({ dates: [] })),
     ]);
     availableDates = datesResp.dates || [];
     cachedDashboard[currentBrand] = dashboard;
@@ -614,7 +618,8 @@ function mytDateStr(offsetDays) {
   return `${myt.getFullYear()}-${m}-${dd}`;
 }
 
-// Period selector: Today / Yesterday chips + a date dropdown for older days.
+// Period selector: window toggle (Full Day / 7-Day) + Today/Yesterday chips
+// + a date dropdown for older days.
 function periodBarHtml(shownDate) {
   const today = mytDateStr(0);
   const yest = mytDateStr(1);
@@ -624,7 +629,11 @@ function periodBarHtml(shownDate) {
   const inList = availableDates.includes(shownDate);
   return `
     <div class="period-bar">
-      <span class="period-bar-label">View</span>
+      <span class="period-bar-label">Window</span>
+      <button class="period-chip ${currentWindow === '1d' ? 'active' : ''}" onclick="selectWindow('1d')">Full Day</button>
+      <button class="period-chip ${currentWindow === '7d' ? 'active' : ''}" onclick="selectWindow('7d')">7-Day</button>
+      <span class="period-bar-sep"></span>
+      <span class="period-bar-label">Date</span>
       <button class="period-chip ${shownDate === today ? 'active' : ''}" onclick="selectDate('${today}')">Today</button>
       <button class="period-chip ${shownDate === yest ? 'active' : ''}" onclick="selectDate('${yest}')">Yesterday</button>
       <select class="period-select" onchange="selectDate(this.value)">
@@ -632,6 +641,14 @@ function periodBarHtml(shownDate) {
         ${opts}
       </select>
     </div>`;
+}
+
+// Called by the window toggle. Date list differs per window, so reset date.
+function selectWindow(w) {
+  if (w === currentWindow) return;
+  currentWindow = w;
+  currentDate = null;
+  if (currentBrand) loadCurrentBrand();
 }
 
 // Called by the period chips / dropdown.
@@ -688,7 +705,7 @@ function renderDashboard(d) {
     <div class="metrics">
       <div class="metric"><div class="metric-label">Total Spend ${trendChip(m.spend_trend_pct || 0, '%', d.has_trend_data)}</div>
         <div class="metric-value">${(m.spend || 0).toFixed(2)}<span class="unit"> RM</span></div>
-        <div class="metric-sub">Today · cap RM${m.budget_cap || 0}</div></div>
+        <div class="metric-sub">${currentWindow === '1d' ? 'Full day' : 'Last 7 days'} · cap RM${m.budget_cap || 0}</div></div>
       <div class="metric"><div class="metric-label">Total Leads ${trendChip(m.leads_trend_abs || 0, '', d.has_trend_data)}</div>
         <div class="metric-value">${m.leads || 0}</div>
         <div class="metric-sub">Msg conversations</div></div>
