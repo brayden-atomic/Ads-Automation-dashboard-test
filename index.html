@@ -311,7 +311,41 @@
 </head>
 <body>
 <!-- ===== PASSWORD GATE ===== -->
-<style id="auth-gate-style">body { visibility: hidden; } body.authed { visibility: visible; }</style>
+<style id="auth-gate-style">
+  body { visibility: hidden; }
+  body.authed { visibility: visible; }
+  #authModal { position: fixed; inset: 0; background: #0d1117; display: flex; align-items: center; justify-content: center;
+               z-index: 100000; visibility: visible; font-family: -apple-system, system-ui, sans-serif; }
+  body.authed #authModal { display: none; }
+  #authModal .auth-card { background: #161b22; border: 1px solid #30363d; border-radius: 16px; padding: 34px 30px; width: 330px; text-align: center; }
+  #authModal .auth-logo { font-size: 34px; }
+  #authModal .auth-title { font-size: 15px; font-weight: 700; color: #e6edf3; margin: 8px 0 4px; }
+  #authModal .auth-sub { font-size: 12px; color: #8b949e; margin-bottom: 18px; }
+  #authModal .auth-row { display: flex; gap: 8px; }
+  #authModal .auth-row input { flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+               padding: 10px 12px; color: #e6edf3; font-size: 14px; outline: none; }
+  #authModal .auth-row input:focus { border-color: #58a6ff; }
+  #authModal .auth-eye { width: 44px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+               cursor: pointer; font-size: 15px; flex-shrink: 0; }
+  #authModal .auth-eye:hover { border-color: #58a6ff; }
+  #authModal .auth-err { color: #f85149; font-size: 12px; min-height: 15px; margin: 9px 0 2px; }
+  #authModal .auth-btn { width: 100%; background: #58a6ff; color: #0d1117; border: none; padding: 11px;
+               border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px; }
+  #authModal .auth-btn:hover { opacity: 0.9; }
+</style>
+<div id="authModal">
+  <div class="auth-card">
+    <div class="auth-logo">🔒</div>
+    <div class="auth-title">Atomic Group · Jarvis Dashboard</div>
+    <div class="auth-sub">Enter password to continue</div>
+    <div class="auth-row">
+      <input type="password" id="authInput" placeholder="Password" autocomplete="current-password">
+      <button type="button" class="auth-eye" id="authEye" title="Show / hide password">👁</button>
+    </div>
+    <div class="auth-err" id="authErr"></div>
+    <button type="button" class="auth-btn" id="authSubmit">Enter</button>
+  </div>
+</div>
 <script>
 (function() {
   const PASSWORD = 'atomic2026';
@@ -320,14 +354,29 @@
     document.body.classList.add('authed');
     return;
   }
-  const input = prompt('🔒 Atomic Group · Jarvis Dashboard\n\nEnter password to continue:');
-  if (input === PASSWORD) {
-    sessionStorage.setItem(SESSION_KEY, PASSWORD);
-    document.body.classList.add('authed');
-  } else {
-    document.documentElement.innerHTML = `<head><meta charset="UTF-8"><title>Access Denied</title><style>body{margin:0;min-height:100vh;background:#0d1117;color:#e6edf3;font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;visibility:visible}.denied{text-align:center;padding:40px}.denied h1{font-size:48px;margin:0 0 12px;background:linear-gradient(180deg,#f85149,#d29922);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}.denied p{color:#8b949e;font-size:14px;margin:0 0 24px}.denied button{background:#58a6ff;color:#0d1117;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}.denied button:hover{opacity:0.9}</style></head><body class="authed"><div class="denied"><h1>🔒 Access Denied</h1><p>Wrong password. Contact Brayden for access.</p><button onclick="location.reload()">Try Again</button></div></body>`;
-    throw new Error('Unauthorized');
+  const input = document.getElementById('authInput');
+  const eye = document.getElementById('authEye');
+  const err = document.getElementById('authErr');
+  function tryAuth() {
+    if (input.value === PASSWORD) {
+      sessionStorage.setItem(SESSION_KEY, PASSWORD);
+      document.body.classList.add('authed');
+    } else {
+      err.textContent = 'Wrong password — try again.';
+      input.value = '';
+      input.focus();
+    }
   }
+  // Eye toggle: flip between masked (password) and visible (text).
+  eye.addEventListener('click', function() {
+    const masked = input.type === 'password';
+    input.type = masked ? 'text' : 'password';
+    eye.textContent = masked ? '🙈' : '👁';
+    input.focus();
+  });
+  document.getElementById('authSubmit').addEventListener('click', tryAuth);
+  input.addEventListener('keydown', function(e) { if (e.key === 'Enter') tryAuth(); });
+  input.focus();
 })();
 </script>
 
