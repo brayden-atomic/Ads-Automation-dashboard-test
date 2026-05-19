@@ -663,7 +663,7 @@ function renderDashboard(d) {
   if (d._no_data) {
     const winLabel = currentWindow === '1d' ? 'Full Day' : '7-Day';
     let msg;
-    if (currentWindow === '1d' && currentDate === mytDateStr(0)) {
+    if (currentWindow === '1d' && (!currentDate || currentDate === mytDateStr(0))) {
       msg = `No live data pulled for <strong>today</strong> yet. Press <strong>Refresh</strong> above to pull today's latest data from Meta (takes ~1 minute).`;
     } else if (currentDate) {
       msg = `No ${winLabel} snapshot for <strong>${escapeHtml(currentDate)}</strong>. The bot may not have run a daily audit that day — pick another date above.`;
@@ -949,9 +949,11 @@ document.querySelectorAll('.nav-link').forEach(link => {
 // =========================================================================
 async function manualRefresh() {
   if (!currentBrand) return;
-  // Live refresh: only when viewing Full Day + Today — pull fresh data from
-  // Meta via the central API (~1 min). Other views just re-read stored data.
-  if (currentWindow === '1d' && currentDate === mytDateStr(0)) {
+  // Live refresh: when viewing Full Day and looking at today (explicitly
+  // selected) OR the latest snapshot (currentDate null) — pull fresh data
+  // from Meta via the central API (~1 min). A specific past date / 7-Day
+  // view just re-reads stored data.
+  if (currentWindow === '1d' && (!currentDate || currentDate === mytDateStr(0))) {
     const btn = document.getElementById('refreshBtn');
     btn.classList.add('loading');
     showLoading('Pulling live data from Meta… (~1 min, please wait)');
