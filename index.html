@@ -75,11 +75,14 @@
   .period-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
   .period-bar-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-right: 2px; }
   .period-bar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; }
-  .toast { position: fixed; bottom: 24px; right: 24px; max-width: 380px; padding: 13px 18px; border-radius: 10px; background: var(--bg-surface-2); border: 1px solid var(--border); color: var(--text-primary); font-size: 13px; font-weight: 600; line-height: 1.4; box-shadow: 0 10px 30px rgba(0,0,0,0.45); opacity: 0; transform: translateY(12px); transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none; z-index: 9999; }
+  .toast { position: fixed; bottom: 24px; right: 24px; width: 290px; padding: 13px 16px; border-radius: 12px; background: var(--bg-surface-2); border: 1px solid var(--accent); color: var(--text-primary); box-shadow: 0 10px 30px rgba(0,0,0,0.45); opacity: 0; transform: translateY(12px); transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none; z-index: 9999; }
   .toast.show { opacity: 1; transform: translateY(0); }
-  .toast.toast-progress { border-color: var(--accent); }
-  .toast.toast-success { border-color: var(--green); }
-  .toast.toast-error { border-color: var(--red); }
+  .toast-title { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+  .toast-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; padding: 3px 0; }
+  .toast-row .ic { display: inline-block; width: 14px; text-align: center; flex-shrink: 0; }
+  .toast-row.active .ic { color: var(--accent); animation: spin 1.2s linear infinite; }
+  .toast-row.queued { color: var(--text-secondary); }
+  .toast-row.failed { color: var(--red); }
   .period-select { padding: 7px 12px; background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 20px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-display); transition: all 0.15s ease; }
   .period-select:hover { color: var(--text-primary); border-color: var(--border); }
 
@@ -955,27 +958,39 @@ document.querySelectorAll('.nav-link').forEach(link => {
 // =========================================================================
 // REFRESH
 // =========================================================================
-// Non-blocking toast. kind: 'progress' | 'success' | 'error'. persist keeps
-// it visible until the next showToast call.
-let _toastTimer = null;
-function showToast(msg, kind, persist) {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = msg;
-  el.className = 'toast show toast-' + (kind || 'progress');
-  if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
-  if (!persist) {
-    _toastTimer = setTimeout(() => { el.classList.remove('show'); }, 6000);
-  }
-}
-
-// Live-refresh queue: one Meta pull runs at a time; extra clicks queue up
-// and run automatically in order. Non-blocking — the page stays usable.
+// Live-refresh panel (bottom-right). Lists every brand currently being
+// refreshed (active + queued); each row disappears when its refresh finishes.
+// One Meta pull runs at a time; extra clicks queue up and run automatically.
 let _refreshActive = null;   // brand_id currently refreshing, or null
 let _refreshQueue = [];      // [{brand, brandName}] waiting their turn
+let _refreshFailed = [];     // [{brand, brandName}] failed, lingering ~30s
 
 function _brandName(brand) {
   return (brandsList.find(b => b.brand_id === brand) || {}).display_name || brand;
+}
+
+// Rebuild the bottom-right panel from current state. Hidden when nothing's up.
+function renderRefreshPanel() {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  const rows = [];
+  if (_refreshActive) {
+    rows.push(`<div class="toast-row active"><span class="ic">⟳</span>${escapeHtml(_brandName(_refreshActive))} — pulling…</div>`);
+  }
+  for (const q of _refreshQueue) {
+    rows.push(`<div class="toast-row queued"><span class="ic">•</span>${escapeHtml(q.brandName)} — queued</div>`);
+  }
+  for (const f of _refreshFailed) {
+    rows.push(`<div class="toast-row failed"><span class="ic">✗</span>${escapeHtml(f.brandName)} — failed</div>`);
+  }
+  if (rows.length === 0) {
+    el.classList.remove('show');
+    el.innerHTML = '';
+    return;
+  }
+  const running = (_refreshActive ? 1 : 0) + _refreshQueue.length;
+  el.innerHTML = `<div class="toast-title">Live refresh${running ? ' · ' + running + ' running' : ''}</div>${rows.join('')}`;
+  el.classList.add('show');
 }
 
 function _processRefreshQueue() {
@@ -983,22 +998,26 @@ function _processRefreshQueue() {
   const job = _refreshQueue.shift();
   _refreshActive = job.brand;
   document.getElementById('refreshBtn').classList.add('loading');
-  const more = _refreshQueue.length ? ` · ${_refreshQueue.length} more queued` : '';
-  showToast(`⟳ Pulling live data for ${job.brandName}… (~1 min${more})`, 'progress', true);
+  renderRefreshPanel();
   apiPost(`/api/refresh?brand=${encodeURIComponent(job.brand)}`, {})
     .then(() => {
-      showToast(`✓ ${job.brandName} refreshed with today's live data.`, 'success');
+      // Success — the row simply disappears (handled by the finally re-render).
       if (currentBrand === job.brand && currentPage === 'dashboard') loadCurrentBrand();
     })
     .catch((err) => {
       console.error('Live refresh failed:', err);
-      showToast(`✗ ${job.brandName} live refresh failed — try again in a bit.`, 'error');
+      _refreshFailed.push(job);
+      setTimeout(() => {
+        _refreshFailed = _refreshFailed.filter(f => f !== job);
+        renderRefreshPanel();
+      }, 30000);   // a failed row lingers 30s so it isn't missed
     })
     .finally(() => {
       _refreshActive = null;
       if (_refreshQueue.length === 0) {
         document.getElementById('refreshBtn').classList.remove('loading');
       }
+      renderRefreshPanel();
       _processRefreshQueue();   // run the next queued refresh, if any
     });
 }
@@ -1010,18 +1029,13 @@ async function manualRefresh() {
   const isLive = currentWindow === '1d' && (!currentDate || currentDate === mytDateStr(0));
   if (isLive) {
     const brand = currentBrand;
-    const brandName = _brandName(brand);
-    if (_refreshActive === brand) {
-      showToast(`${brandName} is already refreshing right now.`, 'progress');
-    } else if (_refreshQueue.some(q => q.brand === brand)) {
-      showToast(`${brandName} is already in the refresh queue.`, 'progress');
-    } else {
-      _refreshQueue.push({ brand, brandName });
-      if (_refreshActive) {
-        showToast(`${brandName} queued — will refresh after the current one (${_refreshQueue.length} in queue).`, 'progress', true);
-      }
-      _processRefreshQueue();
-    }
+    // Already active or queued — it's already shown in the panel, no-op.
+    if (_refreshActive === brand || _refreshQueue.some(q => q.brand === brand)) return;
+    // Retrying — drop any prior failed entry for this brand.
+    _refreshFailed = _refreshFailed.filter(f => f.brand !== brand);
+    _refreshQueue.push({ brand, brandName: _brandName(brand) });
+    renderRefreshPanel();
+    _processRefreshQueue();
     return;  // never blocks — the page stays usable
   }
   await loadCurrentBrand();
