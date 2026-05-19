@@ -167,13 +167,16 @@
   .page-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; background: linear-gradient(180deg, var(--text-primary) 0%, #c9d1d9 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .page-header .sub { font-size: 13px; color: var(--text-secondary); }
 
-  .log-day { margin-bottom: 28px; }
-  .log-day-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); }
-  .log-day-date { font-family: var(--font-mono); font-size: 14px; color: var(--text-primary); font-weight: 700; }
+  .log-day { margin-bottom: 34px; }
+  .log-day-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--border); position: sticky; top: 0; background: var(--bg-base); z-index: 2; }
+  .log-day-date { font-family: var(--font-mono); font-size: 19px; color: var(--text-primary); font-weight: 700; }
+  .log-day-meta { font-size: 12px; color: var(--text-muted); }
+  .log-day-rel { color: var(--accent); font-weight: 700; }
   .log-day-summary { font-size: 12px; color: var(--text-secondary); margin-left: auto; font-family: var(--font-mono); display: flex; gap: 6px; align-items: center; }
   .log-day-summary .pill { padding: 2px 8px; border-radius: 10px; font-weight: 600; }
   .pill-pause { background: var(--red-bg); color: var(--red); }
   .pill-budget { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .pill-other { background: var(--bg-surface-2); color: var(--text-secondary); }
 
   .log-entry { background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 14px; align-items: center; transition: all 0.15s ease; }
   .log-entry:hover { border-color: var(--border); }
@@ -585,16 +588,17 @@ async function loadCurrentBrand() {
     const dashPath = `/api/dashboard?brand=${encodeURIComponent(currentBrand)}`
       + `&window=${encodeURIComponent(currentWindow)}`
       + (currentDate ? `&date=${encodeURIComponent(currentDate)}` : '');
-    const [dashboard, reviews, datesResp] = await Promise.all([
+    const [dashboard, reviews, datesResp, changelogResp] = await Promise.all([
       apiGet(dashPath),
       apiGet(`/api/reviews?brand=${encodeURIComponent(currentBrand)}&period=weekly`),
       apiGet(`/api/dashboard/dates?brand=${encodeURIComponent(currentBrand)}&window=${encodeURIComponent(currentWindow)}`).catch(() => ({ dates: [] })),
+      apiGet(`/api/changelog?brand=${encodeURIComponent(currentBrand)}`).catch(() => ({ entries: [] })),
     ]);
     availableDates = datesResp.dates || [];
     cachedDashboard[currentBrand] = dashboard;
     cachedReviews[currentBrand] = reviews;
     renderDashboard(dashboard);
-    renderChangelog(dashboard);
+    renderChangelog(changelogResp.entries || [], dashboard.brand_display_name);
     renderReviews(reviews);
     setLastSyncOk(dashboard.last_updated_at || dashboard.report_timestamp);
   } catch (err) {
@@ -821,49 +825,69 @@ function renderExpertCard(item, type) {
 // =========================================================================
 // CHANGELOG PAGE
 // =========================================================================
-function renderChangelog(d) {
+function renderChangelog(entries, brandName) {
   const container = document.getElementById('changelogContainer');
-  const entries = d.changelog_today || [];
+  entries = entries || [];
 
   if (entries.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
         <div class="icon">📋</div>
         <h2>No actions logged</h2>
-        <p>Jarvis didn't log any actions for ${escapeHtml(d.brand_display_name || 'this brand')}${d.report_date ? ' on ' + escapeHtml(d.report_date) : ''}. Daily rule check runs at 10:00 AM MYT.</p>
+        <p>No Jarvis actions on record for ${escapeHtml(brandName || 'this brand')} yet. Pauses, budget changes and rebalances appear here once logged. Daily rule check runs at 10:00 AM MYT.</p>
       </div>`;
     return;
   }
 
-  // Group by day (currently only "today" — future: history endpoint)
-  const summary = entries.reduce((acc, e) => {
-    if (e.type === 'pause') acc.pause++;
-    else if (e.type === 'budget-up' || e.type === 'budget-down') acc.budget++;
-    return acc;
-  }, { pause: 0, budget: 0 });
+  // Group every entry by its date, newest day first.
+  const byDay = {};
+  for (const e of entries) {
+    const day = e.date || '(undated)';
+    (byDay[day] = byDay[day] || []).push(e);
+  }
+  const days = Object.keys(byDay).sort().reverse();
+  const today = mytDateStr(0), yest = mytDateStr(1);
 
-  const summaryPills = [];
-  if (summary.pause > 0) summaryPills.push(`<span class="pill pill-pause">${summary.pause} pause</span>`);
-  if (summary.budget > 0) summaryPills.push(`<span class="pill pill-budget">${summary.budget} budget</span>`);
+  container.innerHTML = days.map(day => {
+    // Within a day, show entries in chronological order (earliest first).
+    const dayEntries = byDay[day].slice().sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const summary = dayEntries.reduce((acc, e) => {
+      if (e.type === 'pause') acc.pause++;
+      else if (e.type === 'budget-up' || e.type === 'budget-down') acc.budget++;
+      else acc.other++;
+      return acc;
+    }, { pause: 0, budget: 0, other: 0 });
+    const pills = [];
+    if (summary.pause)  pills.push(`<span class="pill pill-pause">${summary.pause} pause</span>`);
+    if (summary.budget) pills.push(`<span class="pill pill-budget">${summary.budget} budget</span>`);
+    if (summary.other)  pills.push(`<span class="pill pill-other">${summary.other} other</span>`);
 
-  container.innerHTML = `
-    <div class="log-day">
-      <div class="log-day-header">
-        <div class="log-day-date">${escapeHtml(d.report_date)}${d.report_date === mytDateStr(0) ? ' · Today' : d.report_date === mytDateStr(1) ? ' · Yesterday' : ''}</div>
-        <div class="log-day-summary">${summaryPills.join('')}</div>
-      </div>
-      ${entries.map(e => `
-        <div class="log-entry">
-          <div class="log-time">${escapeHtml(e.time || '')}</div>
-          <div class="log-action-chip chip-${e.type}">${escapeHtml(e.action || e.type)}</div>
-          <div class="log-content">
-            <div class="log-ad-name">${escapeHtml(e.ad_name || '')}</div>
-            <div class="log-reason">${escapeHtml(e.reason || '')}</div>
-          </div>
-          <div class="log-delta"><strong>${escapeHtml(e.delta || '')}</strong></div>
-          <div class="log-source">${escapeHtml(e.source || '')}</div>
-        </div>`).join('')}
-    </div>`;
+    let rel = '';
+    if (day === today) rel = 'Today';
+    else if (day === yest) rel = 'Yesterday';
+    let weekday = '';
+    try { weekday = new Date(day + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }); } catch (e) {}
+
+    return `
+      <div class="log-day">
+        <div class="log-day-header">
+          <div class="log-day-date">${escapeHtml(day)}</div>
+          <div class="log-day-meta">${escapeHtml(weekday)}${rel ? ` · <span class="log-day-rel">${rel}</span>` : ''}</div>
+          <div class="log-day-summary">${pills.join('')}</div>
+        </div>
+        ${dayEntries.map(e => `
+          <div class="log-entry">
+            <div class="log-time">${escapeHtml(e.time || '')}</div>
+            <div class="log-action-chip chip-${escapeHtml(e.type || '')}">${escapeHtml(e.action || e.type || '')}</div>
+            <div class="log-content">
+              <div class="log-ad-name">${escapeHtml(e.ad_name || '')}</div>
+              <div class="log-reason">${escapeHtml(e.reason || '')}</div>
+            </div>
+            <div class="log-delta"><strong>${escapeHtml(e.delta || '')}</strong></div>
+            <div class="log-source">${escapeHtml(e.source || '')}</div>
+          </div>`).join('')}
+      </div>`;
+  }).join('');
 }
 
 // =========================================================================
