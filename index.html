@@ -969,7 +969,39 @@ function showToast(msg, kind, persist) {
   }
 }
 
-let _liveRefreshBrand = null;  // brand_id of the in-flight live refresh, or null
+// Live-refresh queue: one Meta pull runs at a time; extra clicks queue up
+// and run automatically in order. Non-blocking — the page stays usable.
+let _refreshActive = null;   // brand_id currently refreshing, or null
+let _refreshQueue = [];      // [{brand, brandName}] waiting their turn
+
+function _brandName(brand) {
+  return (brandsList.find(b => b.brand_id === brand) || {}).display_name || brand;
+}
+
+function _processRefreshQueue() {
+  if (_refreshActive || _refreshQueue.length === 0) return;
+  const job = _refreshQueue.shift();
+  _refreshActive = job.brand;
+  document.getElementById('refreshBtn').classList.add('loading');
+  const more = _refreshQueue.length ? ` · ${_refreshQueue.length} more queued` : '';
+  showToast(`⟳ Pulling live data for ${job.brandName}… (~1 min${more})`, 'progress', true);
+  apiPost(`/api/refresh?brand=${encodeURIComponent(job.brand)}`, {})
+    .then(() => {
+      showToast(`✓ ${job.brandName} refreshed with today's live data.`, 'success');
+      if (currentBrand === job.brand && currentPage === 'dashboard') loadCurrentBrand();
+    })
+    .catch((err) => {
+      console.error('Live refresh failed:', err);
+      showToast(`✗ ${job.brandName} live refresh failed — try again in a bit.`, 'error');
+    })
+    .finally(() => {
+      _refreshActive = null;
+      if (_refreshQueue.length === 0) {
+        document.getElementById('refreshBtn').classList.remove('loading');
+      }
+      _processRefreshQueue();   // run the next queued refresh, if any
+    });
+}
 
 async function manualRefresh() {
   if (!currentBrand) return;
@@ -977,31 +1009,20 @@ async function manualRefresh() {
   // null). A specific past date / 7-Day view just re-reads stored data.
   const isLive = currentWindow === '1d' && (!currentDate || currentDate === mytDateStr(0));
   if (isLive) {
-    if (_liveRefreshBrand) {
-      showToast(`A live refresh is already running (${_liveRefreshBrand}) — please wait for it to finish.`, 'progress');
-      return;
-    }
     const brand = currentBrand;
-    const brandName = (brandsList.find(b => b.brand_id === brand) || {}).display_name || brand;
-    _liveRefreshBrand = brand;
-    document.getElementById('refreshBtn').classList.add('loading');
-    showToast(`⟳ Pulling live data for ${brandName}… (~1 min). You can keep browsing — it runs in the background.`, 'progress', true);
-    // Non-blocking: fire and forget. The user is free to switch brands/pages.
-    apiPost(`/api/refresh?brand=${encodeURIComponent(brand)}`, {})
-      .then(() => {
-        showToast(`✓ ${brandName} refreshed with today's live data.`, 'success');
-        // Only auto-reload if the user is still viewing that brand's dashboard.
-        if (currentBrand === brand && currentPage === 'dashboard') loadCurrentBrand();
-      })
-      .catch((err) => {
-        console.error('Live refresh failed:', err);
-        showToast(`✗ ${brandName} live refresh failed — try again in a bit.`, 'error');
-      })
-      .finally(() => {
-        _liveRefreshBrand = null;
-        document.getElementById('refreshBtn').classList.remove('loading');
-      });
-    return;  // do NOT block — the page stays usable
+    const brandName = _brandName(brand);
+    if (_refreshActive === brand) {
+      showToast(`${brandName} is already refreshing right now.`, 'progress');
+    } else if (_refreshQueue.some(q => q.brand === brand)) {
+      showToast(`${brandName} is already in the refresh queue.`, 'progress');
+    } else {
+      _refreshQueue.push({ brand, brandName });
+      if (_refreshActive) {
+        showToast(`${brandName} queued — will refresh after the current one (${_refreshQueue.length} in queue).`, 'progress', true);
+      }
+      _processRefreshQueue();
+    }
+    return;  // never blocks — the page stays usable
   }
   await loadCurrentBrand();
 }
