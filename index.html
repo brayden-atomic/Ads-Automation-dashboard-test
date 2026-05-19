@@ -663,7 +663,9 @@ function renderDashboard(d) {
   if (d._no_data) {
     const winLabel = currentWindow === '1d' ? 'Full Day' : '7-Day';
     let msg;
-    if (currentDate) {
+    if (currentWindow === '1d' && currentDate === mytDateStr(0)) {
+      msg = `No live data pulled for <strong>today</strong> yet. Press <strong>Refresh</strong> above to pull today's latest data from Meta (takes ~1 minute).`;
+    } else if (currentDate) {
       msg = `No ${winLabel} snapshot for <strong>${escapeHtml(currentDate)}</strong>. The bot may not have run a daily audit that day — pick another date above.`;
     } else if (currentWindow === '1d') {
       msg = `No <strong>Full Day</strong> data for this brand yet. Full Day (single-day) snapshots are pushed from each 10:05 AM MYT daily run — switch to <strong>7-Day</strong> above to see existing data, or check back after the next run. (If this brand's Meta token is expired, refresh it first.)`;
@@ -946,7 +948,23 @@ document.querySelectorAll('.nav-link').forEach(link => {
 // REFRESH
 // =========================================================================
 async function manualRefresh() {
-  if (currentBrand) await loadCurrentBrand();
+  if (!currentBrand) return;
+  // Live refresh: only when viewing Full Day + Today — pull fresh data from
+  // Meta via the central API (~1 min). Other views just re-read stored data.
+  if (currentWindow === '1d' && currentDate === mytDateStr(0)) {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('loading');
+    showLoading('Pulling live data from Meta… (~1 min, please wait)');
+    try {
+      await apiPost(`/api/refresh?brand=${encodeURIComponent(currentBrand)}`, {});
+    } catch (err) {
+      console.error('Live refresh failed:', err);
+      // Fall through — still reload whatever is stored.
+    } finally {
+      btn.classList.remove('loading');
+    }
+  }
+  await loadCurrentBrand();
 }
 
 // =========================================================================
