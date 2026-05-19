@@ -661,9 +661,15 @@ function renderDashboard(d) {
   const container = document.getElementById('dashboardContent');
 
   if (d._no_data) {
-    const msg = currentDate
-      ? `No snapshot was pushed for <strong>${escapeHtml(currentDate)}</strong>. The bot may not have run a daily audit that day — pick another date above.`
-      : `This brand's bot hasn't pushed any data yet. The first daily push happens at 10:05 AM MYT after the bot's daily audit completes. Or trigger manually via Telegram <code>/dashboard_push</code>.`;
+    const winLabel = currentWindow === '1d' ? 'Full Day' : '7-Day';
+    let msg;
+    if (currentDate) {
+      msg = `No ${winLabel} snapshot for <strong>${escapeHtml(currentDate)}</strong>. The bot may not have run a daily audit that day — pick another date above.`;
+    } else if (currentWindow === '1d') {
+      msg = `No <strong>Full Day</strong> data for this brand yet. Full Day (single-day) snapshots are pushed from each 10:05 AM MYT daily run — switch to <strong>7-Day</strong> above to see existing data, or check back after the next run. (If this brand's Meta token is expired, refresh it first.)`;
+    } else {
+      msg = `This brand's bot hasn't pushed any data yet. The first daily push happens at 10:05 AM MYT after the bot's daily audit completes. Or trigger manually via Telegram <code>/dashboard_push</code>.`;
+    }
     container.innerHTML = periodBarHtml(d.report_date || (currentDate || '')) + `
       <div class="empty-state">
         <div class="icon">⏳</div>
