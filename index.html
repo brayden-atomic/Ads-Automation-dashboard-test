@@ -75,6 +75,11 @@
   .period-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
   .period-bar-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-right: 2px; }
   .period-bar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; }
+  .toast { position: fixed; bottom: 24px; right: 24px; max-width: 380px; padding: 13px 18px; border-radius: 10px; background: var(--bg-surface-2); border: 1px solid var(--border); color: var(--text-primary); font-size: 13px; font-weight: 600; line-height: 1.4; box-shadow: 0 10px 30px rgba(0,0,0,0.45); opacity: 0; transform: translateY(12px); transition: opacity 0.2s ease, transform 0.2s ease; pointer-events: none; z-index: 9999; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.toast-progress { border-color: var(--accent); }
+  .toast.toast-success { border-color: var(--green); }
+  .toast.toast-error { border-color: var(--red); }
   .period-select { padding: 7px 12px; background: var(--bg-surface); border: 1px solid var(--border-soft); border-radius: 20px; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font-display); transition: all 0.15s ease; }
   .period-select:hover { color: var(--text-primary); border-color: var(--border); }
 
@@ -403,6 +408,9 @@
     <span id="loadingText">Loading…</span>
   </div>
 </div>
+
+<!-- Toast (non-blocking notifications, e.g. background live refresh) -->
+<div class="toast" id="toast"></div>
 
 <!-- AI Floating Button -->
 <button class="ai-fab" id="aiFab" onclick="toggleAIPanel()" title="Ask Jarvis AI">
@@ -947,24 +955,53 @@ document.querySelectorAll('.nav-link').forEach(link => {
 // =========================================================================
 // REFRESH
 // =========================================================================
+// Non-blocking toast. kind: 'progress' | 'success' | 'error'. persist keeps
+// it visible until the next showToast call.
+let _toastTimer = null;
+function showToast(msg, kind, persist) {
+  const el = document.getElementById('toast');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'toast show toast-' + (kind || 'progress');
+  if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+  if (!persist) {
+    _toastTimer = setTimeout(() => { el.classList.remove('show'); }, 6000);
+  }
+}
+
+let _liveRefreshBrand = null;  // brand_id of the in-flight live refresh, or null
+
 async function manualRefresh() {
   if (!currentBrand) return;
-  // Live refresh: when viewing Full Day and looking at today (explicitly
-  // selected) OR the latest snapshot (currentDate null) — pull fresh data
-  // from Meta via the central API (~1 min). A specific past date / 7-Day
-  // view just re-reads stored data.
-  if (currentWindow === '1d' && (!currentDate || currentDate === mytDateStr(0))) {
-    const btn = document.getElementById('refreshBtn');
-    btn.classList.add('loading');
-    showLoading('Pulling live data from Meta… (~1 min, please wait)');
-    try {
-      await apiPost(`/api/refresh?brand=${encodeURIComponent(currentBrand)}`, {});
-    } catch (err) {
-      console.error('Live refresh failed:', err);
-      // Fall through — still reload whatever is stored.
-    } finally {
-      btn.classList.remove('loading');
+  // Live refresh — only for Full Day + today (explicit) or latest (currentDate
+  // null). A specific past date / 7-Day view just re-reads stored data.
+  const isLive = currentWindow === '1d' && (!currentDate || currentDate === mytDateStr(0));
+  if (isLive) {
+    if (_liveRefreshBrand) {
+      showToast(`A live refresh is already running (${_liveRefreshBrand}) — please wait for it to finish.`, 'progress');
+      return;
     }
+    const brand = currentBrand;
+    const brandName = (brandsList.find(b => b.brand_id === brand) || {}).display_name || brand;
+    _liveRefreshBrand = brand;
+    document.getElementById('refreshBtn').classList.add('loading');
+    showToast(`⟳ Pulling live data for ${brandName}… (~1 min). You can keep browsing — it runs in the background.`, 'progress', true);
+    // Non-blocking: fire and forget. The user is free to switch brands/pages.
+    apiPost(`/api/refresh?brand=${encodeURIComponent(brand)}`, {})
+      .then(() => {
+        showToast(`✓ ${brandName} refreshed with today's live data.`, 'success');
+        // Only auto-reload if the user is still viewing that brand's dashboard.
+        if (currentBrand === brand && currentPage === 'dashboard') loadCurrentBrand();
+      })
+      .catch((err) => {
+        console.error('Live refresh failed:', err);
+        showToast(`✗ ${brandName} live refresh failed — try again in a bit.`, 'error');
+      })
+      .finally(() => {
+        _liveRefreshBrand = null;
+        document.getElementById('refreshBtn').classList.remove('loading');
+      });
+    return;  // do NOT block — the page stays usable
   }
   await loadCurrentBrand();
 }
