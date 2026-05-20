@@ -558,10 +558,10 @@ let availableDates = [];   // report_dates available for currentBrand, newest fi
 // PARENT-BRAND GROUPS — Kingwell / HooHoo 虎乳芝 / HJT 宏珏堂 / Nattome
 // =========================================================================
 const BRAND_GROUPS = [
-  { id: 'kingwell', name: 'Kingwell',     brand_ids: ['heartio', 'rejoint', 'ucare'] },
-  { id: 'hoohoo',   name: 'HooHoo 虎乳芝', brand_ids: ['hoohoo'] },
-  { id: 'hjt',      name: 'HJT 宏珏堂',     brand_ids: ['hjt-soap', 'hjt-hair-cream'] },
   { id: 'nattome',  name: 'Nattome',      brand_ids: ['nat-sg', 'nat-greenheal'] },
+  { id: 'kingwell', name: 'Kingwell',     brand_ids: ['heartio', 'rejoint', 'ucare'] },
+  { id: 'hjt',      name: 'HJT 宏珏堂',     brand_ids: ['hjt-soap', 'hjt-hair-cream'] },
+  { id: 'hoohoo',   name: 'HooHoo 虎乳芝', brand_ids: ['hoohoo'] },
 ];
 function parentGroupOf(brandId) {
   return BRAND_GROUPS.find(g => g.brand_ids.includes(brandId));
