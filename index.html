@@ -278,6 +278,10 @@
   .ai-fab.open { transform: scale(0.92); }
   .ai-fab svg { width: 26px; height: 26px; }
   .ai-fab .glow { position: absolute; inset: -2px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); filter: blur(14px); opacity: 0.45; z-index: -1; animation: glowPulse 3s ease-in-out infinite; }
+  /* Unread badge — red dot that appears when AI has replied while panel was closed */
+  .ai-fab .unread-badge { position: absolute; top: 4px; right: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--red); border: 2px solid var(--bg-base); display: none; box-shadow: 0 0 0 0 rgba(185,28,28,0.5); animation: unreadPulse 1.8s ease-out infinite; }
+  .ai-fab.has-unread .unread-badge { display: block; }
+  @keyframes unreadPulse { 0% { box-shadow: 0 0 0 0 rgba(185,28,28,0.55); } 70% { box-shadow: 0 0 0 10px rgba(185,28,28,0); } 100% { box-shadow: 0 0 0 0 rgba(185,28,28,0); } }
   @keyframes glowPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
 
   .ai-panel { position: fixed; bottom: 100px; right: 28px; z-index: 200; width: 420px; max-width: calc(100vw - 56px); height: 600px; max-height: calc(100vh - 140px); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 20px 50px rgba(28,25,23,0.15), 0 8px 20px rgba(4,120,87,0.08); display: none; flex-direction: column; overflow: hidden; }
@@ -518,6 +522,7 @@
 <button class="ai-fab" id="aiFab" onclick="toggleAIPanel()" title="Ask Jarvis AI">
   <span class="glow"></span>
   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.4 4.6L18 8l-4.6 1.4L12 14l-1.4-4.6L6 8l4.6-1.4L12 2zm6 11l.7 2.3L21 16l-2.3.7L18 19l-.7-2.3L15 16l2.3-.7L18 13zM6 13l.5 1.5L8 15l-1.5.5L6 17l-.5-1.5L4 15l1.5-.5L6 13z"/></svg>
+  <span class="unread-badge" aria-hidden="true"></span>
 </button>
 
 <!-- AI Chat Panel -->
@@ -1326,12 +1331,32 @@ async function sendMessage() {
     removeTyping();
     appendMessage('bot', res.answer || '(empty response)');
     document.getElementById('aiStatusText').textContent = `Connected · ${res.model_used || 'Gemini'}`;
+    notifyIfPanelClosed();
   } catch (err) {
     removeTyping();
     appendMessage('bot', `Failed to get answer: ${err.message}`, true);
+    notifyIfPanelClosed();
   } finally {
     sendBtn.disabled = false;
   }
+}
+
+// Show a red unread badge on the FAB if the panel is closed when an AI reply arrives.
+// Also pulse the document title so the tab itself signals fresh activity.
+let _origTitle = null;
+function notifyIfPanelClosed() {
+  const panel = document.getElementById('aiPanel');
+  const fab = document.getElementById('aiFab');
+  if (!panel || !fab) return;
+  if (panel.classList.contains('visible')) return;  // user is looking — no need to nag
+  fab.classList.add('has-unread');
+  if (_origTitle === null) _origTitle = document.title;
+  document.title = '● Jarvis AI · reply ready';
+}
+function clearUnreadBadge() {
+  const fab = document.getElementById('aiFab');
+  if (fab) fab.classList.remove('has-unread');
+  if (_origTitle !== null) { document.title = _origTitle; _origTitle = null; }
 }
 
 // =========================================================================
@@ -1404,6 +1429,8 @@ function toggleAIPanel() {
   panel.classList.toggle('visible');
   fab.classList.toggle('open');
   if (!opening) return;
+  // Opening — user is about to read whatever replies came in while it was closed.
+  clearUnreadBadge();
 
   // Sync AI brand to dashboard's currentBrand each time the panel opens,
   // so the AI starts answering for whatever brand the user is currently viewing.
