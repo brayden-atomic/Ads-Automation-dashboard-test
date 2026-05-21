@@ -293,6 +293,17 @@
   .ai-close-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 22px; line-height: 1; padding: 4px 8px; border-radius: 6px; }
   .ai-close-btn:hover { color: var(--text-primary); background: var(--bg-surface-2); }
 
+  /* Brand selector inside AI panel — independent from dashboard's currentBrand */
+  .ai-brand-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px 0; }
+  .ai-brand-bar .label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; }
+  .ai-brand-select-wrap { position: relative; flex: 1; }
+  .ai-brand-select-wrap::after { content: "▾"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--text-secondary); pointer-events: none; }
+  .ai-brand-select { width: 100%; appearance: none; -webkit-appearance: none; -moz-appearance: none; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 26px 6px 10px; font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+  .ai-brand-select:hover { border-color: var(--accent); }
+  .ai-brand-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(4,120,87,0.10); }
+  .ai-brand-select optgroup { font-weight: 700; color: var(--text-secondary); }
+  .ai-brand-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
   .ai-mode { display: flex; gap: 4px; padding: 10px 16px 0; }
   .ai-mode-tab { font-size: 11px; padding: 5px 11px; border-radius: 6px; background: transparent; border: 1px solid var(--border-soft); color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.15s ease; }
   .ai-mode-tab.active { background: var(--bg-surface-2); color: var(--text-primary); border-color: var(--accent); }
@@ -519,6 +530,12 @@
     </div>
     <button class="ai-close-btn" onclick="toggleAIPanel()">×</button>
   </div>
+  <div class="ai-brand-bar">
+    <span class="label">Asking about</span>
+    <div class="ai-brand-select-wrap">
+      <select class="ai-brand-select" id="aiBrandSelect" aria-label="Brand context for AI"></select>
+    </div>
+  </div>
   <div class="ai-mode">
     <button class="ai-mode-tab active" data-mode="qa">💬 Quick Q&A</button>
     <button class="ai-mode-tab" data-mode="deep">🔬 Deep Analysis</button>
@@ -549,6 +566,7 @@ let currentDate = null;    // null = latest snapshot; else 'YYYY-MM-DD'
 let currentWindow = '7d';  // '7d' (trailing week) | '1d' (single full day)
 let currentPage = 'dashboard';
 let currentAIMode = 'qa';
+let currentAIBrand = null; // brand context for AI panel — independent from currentBrand
 let cachedDashboard = {};  // brand_id → dashboard payload
 let cachedReviews = {};    // brand_id → reviews payload
 let brandsList = [];
@@ -663,9 +681,12 @@ async function loadBrands() {
   // Derive currentParent from currentBrand
   const grp = parentGroupOf(currentBrand);
   currentParent = grp ? grp.id : (BRAND_GROUPS[0]?.id || null);
+  // Default AI brand to whatever the dashboard is starting on; user can change inside AI panel.
+  if (!currentAIBrand) currentAIBrand = currentBrand;
 
   renderParentRow();
   renderSubRow();
+  renderAIBrandSelect();
 }
 
 function renderParentRow() {
@@ -1283,7 +1304,8 @@ async function sendMessage() {
   const sendBtn = document.getElementById('aiSendBtn');
   const text = input.value.trim();
   if (!text) return;
-  if (!currentBrand) {
+  const askBrand = currentAIBrand || currentBrand;
+  if (!askBrand) {
     appendMessage('bot', 'Please select a brand first.', true);
     return;
   }
@@ -1295,7 +1317,7 @@ async function sendMessage() {
 
   try {
     const res = await apiPost('/api/ask', {
-      brand: currentBrand,
+      brand: askBrand,
       question: text,
       mode: currentAIMode,
     });
@@ -1309,6 +1331,49 @@ async function sendMessage() {
     sendBtn.disabled = false;
   }
 }
+
+// =========================================================================
+// AI brand selector — independent context, switchable inside the AI panel
+// =========================================================================
+function renderAIBrandSelect() {
+  const sel = document.getElementById('aiBrandSelect');
+  if (!sel || !brandsList.length) return;
+  // Group sub-brands by parent (BRAND_GROUPS order)
+  const html = BRAND_GROUPS.map(g => {
+    const subs = brandsInGroup(g.id);
+    if (!subs.length) return '';
+    const opts = subs.map(b => {
+      const noData = !b.has_data ? ' (no data)' : '';
+      return `<option value="${escapeHtml(b.brand_id)}">${escapeHtml(b.display_name)}${noData}</option>`;
+    }).join('');
+    return `<optgroup label="${escapeHtml(g.name)}">${opts}</optgroup>`;
+  }).join('');
+  sel.innerHTML = html;
+  if (currentAIBrand) sel.value = currentAIBrand;
+}
+
+function switchAIBrand(brandId, opts = {}) {
+  if (!brandId || brandId === currentAIBrand) return;
+  const prevName = (brandsList.find(b => b.brand_id === currentAIBrand) || {}).display_name;
+  currentAIBrand = brandId;
+  const newName = (brandsList.find(b => b.brand_id === brandId) || {}).display_name || brandId;
+  const sel = document.getElementById('aiBrandSelect');
+  if (sel && sel.value !== brandId) sel.value = brandId;
+  if (!opts.silent) {
+    const msgs = document.getElementById('aiMessages');
+    const hasHistory = msgs && msgs.children.length > 0;
+    if (hasHistory) {
+      appendMessage('bot', `🔄 Switched context to **${newName}**. From now on I'll answer questions about *this* ad account${prevName ? ` (was: ${prevName})` : ''}.`);
+    }
+    renderAISuggestions();
+  }
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'aiBrandSelect') {
+    switchAIBrand(e.target.value);
+  }
+});
 
 document.getElementById('aiInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -1333,11 +1398,22 @@ document.querySelectorAll('.ai-mode-tab').forEach(tab => {
 function toggleAIPanel() {
   const panel = document.getElementById('aiPanel');
   const fab = document.getElementById('aiFab');
+  const opening = !panel.classList.contains('visible');
   panel.classList.toggle('visible');
   fab.classList.toggle('open');
-  if (panel.classList.contains('visible') && document.getElementById('aiMessages').children.length === 0) {
-    const brandName = brandsList.find(b => b.brand_id === currentBrand)?.display_name || currentBrand;
-    appendMessage('bot', `Hi Brayden 👋 I'm Jarvis AI, your assistant for the **${brandName}** ad account.\n\nI have full context on today's ad data. Ask me anything, or pick a quick question below.`);
+  if (!opening) return;
+
+  // Sync AI brand to dashboard's currentBrand each time the panel opens,
+  // so the AI starts answering for whatever brand the user is currently viewing.
+  // The user can then independently switch via the dropdown.
+  if (currentBrand && currentAIBrand !== currentBrand) {
+    currentAIBrand = currentBrand;
+  }
+  renderAIBrandSelect();
+
+  if (document.getElementById('aiMessages').children.length === 0) {
+    const brandName = (brandsList.find(b => b.brand_id === currentAIBrand) || {}).display_name || currentAIBrand || '—';
+    appendMessage('bot', `Hi Brayden 👋 I'm Jarvis AI, your assistant for the **${brandName}** ad account.\n\nI have full context on today's ad data. Switch brand any time using the selector above. Ask me anything, or pick a quick question below.`);
     renderAISuggestions();
   }
 }
