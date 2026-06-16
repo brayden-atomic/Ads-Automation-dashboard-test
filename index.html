@@ -585,6 +585,7 @@ const BRAND_GROUPS = [
   { id: 'kingwell', name: 'Kingwell',     brand_ids: ['heartio', 'rejoint', 'ucare'] },
   { id: 'hjt',      name: 'HJT 宏珏堂',     brand_ids: ['hjt-soap', 'hjt-hair-cream'] },
   { id: 'hoohoo',   name: 'HooHoo 虎乳芝', brand_ids: ['hoohoo'] },
+  { id: 'tpd',      name: 'TPD',          brand_ids: [] },  // placeholder — no brands/data yet
 ];
 function parentGroupOf(brandId) {
   return BRAND_GROUPS.find(g => g.brand_ids.includes(brandId));
@@ -742,9 +743,25 @@ function switchParent(parentId) {
   const target = subs.find(b => b.has_data) || subs[0];
   renderParentRow();
   renderSubRow();
-  if (target && target.brand_id !== currentBrand) {
-    switchBrand(target.brand_id);
+  if (target) {
+    if (target.brand_id !== currentBrand) switchBrand(target.brand_id);
+  } else {
+    // Empty group (e.g. TPD placeholder — no brands linked yet). Show a clean
+    // empty state instead of leaving the previous brand's data on screen.
+    currentBrand = null;
+    renderEmptyParentState(BRAND_GROUPS.find(g => g.id === parentId)?.name || parentId);
   }
+}
+
+function renderEmptyParentState(groupName) {
+  document.getElementById('dashboardContent').innerHTML = `
+    <div class="empty-state">
+      <div class="icon">📊</div>
+      <h2>${escapeHtml(groupName)}</h2>
+      <p>No ad accounts linked to this group yet. Data will appear here once ${escapeHtml(groupName)} brands are connected.</p>
+    </div>`;
+  const cl = document.getElementById('changelogContainer'); if (cl) cl.innerHTML = '';
+  const rv = document.getElementById('reviewContainer'); if (rv) rv.innerHTML = '';
 }
 
 function switchBrand(brandId) {
@@ -766,6 +783,7 @@ function switchBrand(brandId) {
 // DASHBOARD PAGE
 // =========================================================================
 async function loadCurrentBrand() {
+  if (!currentBrand) return;  // empty parent group selected (e.g. TPD placeholder) — nothing to load
   showLoading('Fetching ' + currentBrand + '…');
   document.getElementById('refreshBtn').classList.add('loading');
   try {
